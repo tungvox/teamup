@@ -10,25 +10,26 @@ export const BottomNav: React.FC = () => {
   const NavItem = ({ path, icon, label }: { path: string; icon: string; label: string }) => (
     <button
       onClick={() => navigate(path)}
-      className={`flex flex-col items-center gap-1 p-2 w-16 group transition-colors ${
+      className={`flex flex-col items-center gap-1 p-2 w-16 lg:w-full group transition-colors ${
         isActive(path) ? 'text-primary' : 'text-slate-500 hover:text-slate-300'
       }`}
+      title={label}
     >
-      <span className={`material-symbols-outlined text-[26px] ${isActive(path) ? 'font-variation-settings-fill' : ''}`}>
+      <span className={`material-symbols-outlined text-[26px] lg:text-[28px] ${isActive(path) ? 'font-variation-settings-fill' : ''}`}>
         {icon}
       </span>
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className="text-[10px] font-medium lg:text-xs">{label}</span>
     </button>
   );
 
   return (
-    <nav className="sticky bottom-0 z-50 w-full bg-surface/95 backdrop-blur-xl border-t border-white/5 pb-safe pt-2 px-2">
-      <div className="flex justify-around items-center h-16">
+    <nav className="sticky bottom-0 z-50 w-full bg-surface/95 backdrop-blur-xl border-t border-white/5 pb-safe pt-2 px-2 lg:border-t-0 lg:border-r lg:border-r-white/5 lg:bg-surface/98 lg:w-20 lg:h-screen lg:fixed lg:left-0 lg:top-0 lg:flex lg:flex-col lg:justify-start lg:items-center lg:pt-8 lg:pb-4 lg:px-0">
+      <div className="flex justify-around items-center h-16 max-w-full lg:flex-col lg:justify-start lg:gap-6 lg:h-auto lg:w-full">
         <NavItem path="/home" icon="home" label="Home" />
-        <NavItem path="/my-games" icon="sports_score" label="My Games" />
-        <div className="relative -top-5">
-           <button onClick={() => navigate('/event/create')} className="h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/40 flex items-center justify-center transform hover:scale-105 transition-all">
-             <span className="material-symbols-outlined text-[28px]">add</span>
+        <NavItem path="/my-games" icon="sports_score" label="My Events" />
+        <div className="relative -top-5 lg:static lg:my-4">
+           <button onClick={() => navigate('/event/create')} className="h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/40 flex items-center justify-center transform hover:scale-105 transition-all lg:w-12 lg:h-12">
+             <span className="material-symbols-outlined text-[28px] lg:text-[24px]">add</span>
            </button>
         </div>
         <NavItem path="/messages" icon="chat_bubble" label="Chat" />

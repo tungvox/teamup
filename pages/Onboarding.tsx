@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SignIn, SignUp } from '@clerk/clerk-react';
 import { Header } from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
+import { validators } from '../utils/validation';
 
 export const OnboardingLanding: React.FC = () => {
   const navigate = useNavigate();
@@ -52,7 +55,7 @@ export const OnboardingLanding: React.FC = () => {
 
         <div className="flex flex-col gap-4">
           <button 
-            onClick={() => navigate('/auth')}
+            onClick={() => navigate('/create-profile')}
             className="w-full py-4 bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all rounded-xl shadow-lg shadow-primary/20 text-white font-bold text-lg flex items-center justify-center gap-2 group"
           >
             Get Started
@@ -127,66 +130,67 @@ export const AuthSelection: React.FC = () => {
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading, clerkUser } = useAuth();
+
+  useEffect(() => {
+    // Only redirect if fully authenticated
+    // Wait for loading to complete and ensure both Clerk and profile exist
+    if (!isLoading && isAuthenticated && clerkUser) {
+      // Small delay to ensure state is stable
+      const timer = setTimeout(() => {
+        navigate('/home', { replace: true });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isLoading, clerkUser, navigate]);
+
+  // Show loading state if Clerk user exists but profile is still loading
+  if (clerkUser && isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-white">Loading your profile...</div>
+      </div>
+    );
+  }
+
+  // Don't show login form if already authenticated
+  if (!isLoading && isAuthenticated && clerkUser) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-white">Redirecting...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
        <Header transparent />
-       <main className="flex-1 px-6 pt-4 pb-8 flex flex-col">
-         {/* Title */}
-         <div className="mb-8">
-           <h1 className="text-4xl font-extrabold mb-3 tracking-tight">Welcome <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">Back!</span></h1>
+      <main className="flex-1 px-6 pt-4 pb-8 flex flex-col items-center justify-center">
+        <div className="w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-extrabold mb-3 tracking-tight">
+              Welcome <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">Back!</span>
+            </h1>
            <p className="text-slate-400 font-medium">Let's get you back on the court.</p>
          </div>
-
-         {/* Form */}
-         <div className="space-y-5 mb-8">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 ml-1 tracking-wider">EMAIL</label>
-              <div className="relative group">
-                <span className="absolute left-4 top-3.5 text-slate-500 material-symbols-outlined text-[20px] group-focus-within:text-primary transition-colors">mail</span>
-                <input type="email" placeholder="name@example.com" className="w-full bg-surface border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 ml-1 tracking-wider">PASSWORD</label>
-              <div className="relative group">
-                <span className="absolute left-4 top-3.5 text-slate-500 material-symbols-outlined text-[20px] group-focus-within:text-primary transition-colors">lock</span>
-                <input type="password" placeholder="Enter your password" className="w-full bg-surface border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
-                <button className="absolute right-4 top-3.5 text-slate-500 hover:text-white text-[10px] font-bold tracking-wider py-1">SHOW</button>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button className="text-xs font-bold text-primary hover:text-primary-hover transition-colors">Forgot Password?</button>
-            </div>
-         </div>
-
-         {/* Main Action */}
-         <button onClick={() => navigate('/home')} className="w-full bg-primary hover:bg-primary-hover text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all mb-8 flex items-center justify-center gap-2 group">
-           Log In
-           <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-         </button>
-
-         {/* Divider */}
-         <div className="relative flex py-2 items-center mb-8">
-           <div className="flex-grow border-t border-white/10"></div>
-           <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold uppercase tracking-wider">Or continue with</span>
-           <div className="flex-grow border-t border-white/10"></div>
-         </div>
-
-         {/* Social Login */}
-         <div className="grid grid-cols-2 gap-4 mb-auto">
-           <button className="flex items-center justify-center gap-2 bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 py-3.5 rounded-xl transition-all group">
-             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 group-hover:scale-110 transition-transform" alt="Google" />
-             <span className="font-bold text-sm">Google</span>
-           </button>
-           <button className="flex items-center justify-center gap-2 bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 py-3.5 rounded-xl transition-all group">
-             <span className="material-symbols-outlined text-[22px] group-hover:scale-110 transition-transform">apple</span>
-             <span className="font-bold text-sm">Apple</span>
-           </button>
-         </div>
-
-         {/* Footer */}
-         <div className="pt-6 text-center border-t border-white/5">
-           <p className="text-slate-400 text-sm">Don't have an account? <span onClick={() => navigate('/create-profile')} className="text-white font-bold cursor-pointer hover:underline">Sign Up</span></p>
+          <SignIn 
+            routing="hash"
+            signUpUrl="/#/create-profile"
+            appearance={{
+              elements: {
+                rootBox: "mx-auto",
+                card: "bg-surface border border-white/10",
+                headerTitle: "text-white",
+                headerSubtitle: "text-slate-400",
+                socialButtonsBlockButton: "bg-surface border border-white/10 text-white hover:bg-white/5",
+                formButtonPrimary: "bg-primary hover:bg-primary-hover",
+                formFieldInput: "bg-background border-white/10 text-white",
+                formFieldLabel: "text-slate-400",
+                footerActionLink: "text-primary",
+              }
+            }}
+          />
          </div>
        </main>
     </div>
@@ -195,98 +199,157 @@ export const Login: React.FC = () => {
 
 export const CreateProfile: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedSports, setSelectedSports] = useState<string[]>(['Basketball']);
+  const { isAuthenticated, isLoading, user, clerkUser } = useAuth();
+  const hasRedirectedRef = React.useRef(false);
 
-  const toggleSport = (sport: string) => {
-    if (selectedSports.includes(sport)) {
-      setSelectedSports(selectedSports.filter(s => s !== sport));
-    } else {
-      setSelectedSports([...selectedSports, sport]);
+  useEffect(() => {
+    // Debug logging
+    console.log('CreateProfile redirect check:', {
+      hasRedirected: hasRedirectedRef.current,
+      isLoading,
+      isAuthenticated,
+      hasClerkUser: !!clerkUser,
+      hasUser: !!user,
+      userLocation: user?.location,
+    });
+
+    // If we've already redirected, don't do anything
+    if (hasRedirectedRef.current) return;
+
+    // If Clerk user exists and loading is done, redirect (don't wait for profile)
+    if (clerkUser && !isLoading) {
+      console.log('CreateProfile: Clerk user exists and loading done, redirecting...');
+      hasRedirectedRef.current = true;
+      
+      // Redirect immediately without delay
+      if (user && user.location) {
+        // User has location, go to home
+        console.log('CreateProfile: Redirecting to /home (has location)');
+        navigate('/home', { replace: true });
+      } else {
+        // New user without location, go to set-location
+        console.log('CreateProfile: Redirecting to /set-location (no location or no profile yet)');
+        navigate('/set-location', { replace: true });
+      }
     }
-  };
+  }, [isLoading, user, clerkUser, navigate]);
+
+  // Show loading state while profile is being created
+  if (clerkUser && isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-white">Creating your profile...</div>
+      </div>
+    );
+  }
+
+  // Show redirecting if Clerk user exists and we're about to redirect
+  // OR if user is already authenticated - don't show signup form
+  if (clerkUser) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-white">Redirecting...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
       <Header />
-      <main className="flex-1 px-6 pt-4 pb-32">
-        <div className="mb-8">
+      <main className="flex-1 px-6 pt-4 pb-8 flex flex-col items-center justify-center">
+        <div className="w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
+          <div className="mb-8 text-center">
           <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-2">
             Let's get you <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">in the game.</span>
           </h1>
-          <p className="text-slate-400 font-medium">Create your athlete profile to start connecting.</p>
+            <p className="text-slate-400 font-medium">Create your account to start connecting.</p>
         </div>
-
-        <div className="flex justify-center mb-10">
-          <div className="relative group cursor-pointer">
-            <div className="w-32 h-32 rounded-full bg-surface flex items-center justify-center overflow-hidden border-4 border-surface shadow-xl relative">
-              <span className="material-symbols-outlined text-5xl text-slate-500">person</span>
-            </div>
-            <div className="absolute bottom-1 right-1 bg-primary text-white p-2.5 rounded-full shadow-lg border-4 border-background flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg">photo_camera</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex gap-4">
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-semibold text-slate-300 ml-1">First Name</label>
-              <input type="text" placeholder="e.g. Alex" className="w-full bg-surface border border-white/5 rounded-xl px-4 py-3.5 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-slate-500 text-white" />
-            </div>
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-semibold text-slate-300 ml-1">Last Name</label>
-              <input type="text" placeholder="e.g. Morgan" className="w-full bg-surface border border-white/5 rounded-xl px-4 py-3.5 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-slate-500 text-white" />
-            </div>
-          </div>
-
-          <div className="pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-slate-300 ml-1">What do you play?</label>
-              <span className="text-xs text-primary font-medium cursor-pointer hover:underline">Select all</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {['Basketball', 'Soccer', 'Tennis', 'Gym', 'Running'].map((sport) => {
-                const isSelected = selectedSports.includes(sport);
-                return (
-                  <button 
-                    key={sport}
-                    onClick={() => toggleSport(sport)}
-                    className={`relative flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all active:scale-95 ${
-                      isSelected 
-                      ? 'bg-gradient-to-br from-[#FFD700] to-[#32CD32] text-black shadow-lg shadow-green-900/20 font-bold' 
-                      : 'bg-surface border border-white/5 text-slate-400 hover:bg-white/5'
-                    }`}
-                  >
-                    <span>{sport}</span>
-                    {isSelected && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-background rounded-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-xs text-primary font-bold">check</span>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-              <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-slate-600 text-slate-500 font-medium hover:text-primary hover:border-primary transition-colors">
-                <span className="material-symbols-outlined text-[20px]">add</span>
-                <span>Add</span>
-              </button>
-            </div>
+          <div className="w-full" style={{ minHeight: '400px' }}>
+            <SignUp 
+              routing="hash"
+              signInUrl="/#/login"
+              afterSignUpUrl="/#/set-location"
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  card: "bg-surface border border-white/10 shadow-lg w-full",
+                  headerTitle: "text-white !text-2xl",
+                  headerSubtitle: "text-slate-400",
+                  socialButtonsBlockButton: "bg-surface border border-white/10 text-white hover:bg-white/5",
+                  formButtonPrimary: "bg-primary hover:bg-primary-hover text-white",
+                  formFieldInput: "bg-background border-white/10 text-white",
+                  formFieldLabel: "text-slate-400",
+                  footerActionLink: "text-primary hover:text-primary-hover",
+                  formFieldInputShowPasswordButton: "text-slate-400 hover:text-white",
+                  identityPreviewText: "text-white",
+                  identityPreviewEditButton: "text-primary",
+                },
+                variables: {
+                  colorPrimary: "#0d7cf2",
+                  colorBackground: "#1C232B",
+                  colorInputBackground: "#101922",
+                  colorText: "#ffffff",
+                  colorTextSecondary: "#93a2b7",
+                }
+              }}
+            />
           </div>
         </div>
       </main>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent z-40 max-w-md mx-auto">
-        <button onClick={() => navigate('/set-location')} className="w-full bg-primary hover:bg-primary-hover text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 transform active:scale-[0.98] transition-all">
-          Continue
-          <span className="material-symbols-outlined">arrow_forward</span>
-        </button>
-      </div>
     </div>
   );
 };
 
 export const SetLocation: React.FC = () => {
   const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
+  const [selectedCity, setSelectedCity] = useState('Bà Rịa - Vũng Tàu');
+
+  // Vietnamese cities list
+  const vietnamCities = [
+    { name: "Thành phố Hồ Chí Minh", english: "Ho Chi Minh City" },
+    { name: "Hà Nội", english: "Hanoi" },
+    { name: "Đà Nẵng", english: "Da Nang" },
+    { name: "Hải Phòng", english: "Hai Phong" },
+    { name: "Cần Thơ", english: "Can Tho" },
+    { name: "Vũng Tàu", english: "Vung Tau" },
+    { name: "Nha Trang", english: "Nha Trang" },
+    { name: "Huế", english: "Hue" },
+    { name: "Đà Lạt", english: "Da Lat" },
+    { name: "Quy Nhơn", english: "Quy Nhon" },
+    { name: "Phan Thiết", english: "Phan Thiet" },
+    { name: "Vinh", english: "Vinh" },
+    { name: "Thái Nguyên", english: "Thai Nguyen" },
+    { name: "Biên Hòa", english: "Bien Hoa" },
+    { name: "Long Xuyên", english: "Long Xuyen" },
+    { name: "Rạch Giá", english: "Rach Gia" },
+    { name: "Mỹ Tho", english: "My Tho" },
+    { name: "Cà Mau", english: "Ca Mau" },
+    { name: "Bạc Liêu", english: "Bac Lieu" },
+    { name: "Sóc Trăng", english: "Soc Trang" },
+    { name: "Trà Vinh", english: "Tra Vinh" },
+    { name: "Bến Tre", english: "Ben Tre" },
+    { name: "Tây Ninh", english: "Tay Ninh" },
+    { name: "Bình Dương", english: "Binh Duong" },
+    { name: "Đồng Nai", english: "Dong Nai" },
+    { name: "Bà Rịa - Vũng Tàu", english: "Ba Ria - Vung Tau" },
+    { name: "Khánh Hòa", english: "Khanh Hoa" },
+    { name: "Lâm Đồng", english: "Lam Dong" },
+    { name: "Bình Thuận", english: "Binh Thuan" },
+    { name: "Bình Phước", english: "Binh Phuoc" },
+    { name: "Đồng Tháp", english: "Dong Thap" },
+    { name: "An Giang", english: "An Giang" },
+    { name: "Kiên Giang", english: "Kien Giang" }
+  ];
+
+  const handleConfirm = () => {
+    if (user) {
+      updateUser({ location: selectedCity });
+      navigate('/success');
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
       <Header title="Step 2 of 4" />
@@ -296,45 +359,24 @@ export const SetLocation: React.FC = () => {
           <p className="text-slate-400 text-base">Set your home base to find teams, tournaments, and matches near you.</p>
         </div>
 
-        <div className="relative mb-4">
-          <div className="flex items-center bg-surface border border-white/5 rounded-xl px-4 h-14 focus-within:ring-2 focus-within:ring-primary transition-all">
-            <span className="material-symbols-outlined text-slate-400 mr-3">search</span>
-            <input type="text" placeholder="Search city, zip, or venue..." className="flex-1 bg-transparent outline-none text-white placeholder:text-slate-500 h-full" />
-          </div>
-        </div>
-
-        <button className="flex items-center gap-4 bg-surface p-3 rounded-xl mb-6 hover:bg-white/5 transition-colors border border-white/5">
-          <div className="flex items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0 h-10 w-10">
-            <span className="material-symbols-outlined">my_location</span>
-          </div>
-          <div className="flex flex-col items-start flex-1 text-left">
-            <p className="text-white font-medium">Use my current location</p>
-          </div>
-          <span className="material-symbols-outlined text-slate-400">chevron_right</span>
-        </button>
-
-        <div className="flex-1 w-full min-h-[300px] rounded-2xl overflow-hidden relative shadow-lg border border-white/10 group">
-          <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1774&q=80" alt="Map" className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 transition-all duration-700" />
-          <div className="absolute inset-0 flex items-center justify-center pb-8">
-            <div className="relative flex flex-col items-center">
-              <div className="absolute w-12 h-12 bg-primary/30 rounded-full animate-ping"></div>
-              <span className="material-symbols-outlined text-primary text-5xl drop-shadow-lg z-20">location_on</span>
-              <div className="w-4 h-1.5 bg-black/50 rounded-full blur-[2px] mt-[-6px]"></div>
-            </div>
-          </div>
-          <div className="absolute bottom-4 left-4 right-4 p-3 rounded-xl bg-surface/90 backdrop-blur-md border border-white/10 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-sm text-slate-300">navigation</span>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Selected</p>
-              <p className="text-sm text-white font-medium truncate">San Francisco, CA</p>
-            </div>
-          </div>
+        {/* City Selector */}
+        <div className="mb-6">
+          <label className="text-sm font-medium text-slate-400 mb-2 block">Chọn thành phố</label>
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="w-full bg-surface rounded-xl px-4 h-14 outline-none border border-white/10 focus:border-primary transition-colors text-white"
+          >
+            {vietnamCities.map((city) => (
+              <option key={city.name} value={city.name}>
+                {city.name}
+              </option>
+            ))}
+          </select>
         </div>
       </main>
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent z-30 max-w-md mx-auto">
-        <button onClick={() => navigate('/success')} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent z-30 max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
+        <button onClick={handleConfirm} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
           Confirm Location
         </button>
       </div>
