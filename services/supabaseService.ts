@@ -78,6 +78,26 @@ export const eventService = {
   async updateEvent(id: string, updates: Partial<Event>): Promise<any> {
     const dbData = mapEventToDB(updates as Event);
     console.log('Updating event:', id, 'with data:', dbData);
+    console.log('Players array being saved:', dbData.players);
+    console.log('Players array type:', typeof dbData.players, Array.isArray(dbData.players));
+    
+    // Ensure players is a proper array
+    if (dbData.players !== undefined) {
+      if (!Array.isArray(dbData.players)) {
+        console.warn('Players is not an array, converting:', dbData.players);
+        dbData.players = [dbData.players];
+      }
+      // Ensure all values are strings and filter out any empty/null values
+      dbData.players = dbData.players
+        .map((p: any) => String(p))
+        .filter((p: string) => p && p.trim() !== '');
+      console.log('Normalized players array:', dbData.players);
+      console.log('Players array length:', dbData.players.length);
+    }
+    
+    // Log the full update payload
+    console.log('Full update payload:', JSON.stringify(dbData, null, 2));
+    
     const { data, error } = await supabase
       .from('events')
       .update(dbData)
@@ -86,9 +106,21 @@ export const eventService = {
     
     if (error) {
       console.error('Error updating event:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
     console.log('Event updated successfully:', data);
+    console.log('Returned players array:', data?.[0]?.players);
+    console.log('Returned players array type:', typeof data?.[0]?.players, Array.isArray(data?.[0]?.players));
+    
+    // Verify the update worked by querying again
+    const verifyData = await supabase
+      .from('events')
+      .select('players, current_players')
+      .eq('id', id)
+      .single();
+    console.log('Verification query result:', verifyData.data);
+    
     // Return the updated data so we can use it immediately
     return data && data.length > 0 ? data[0] : null;
   },
@@ -152,14 +184,35 @@ export const eventService = {
   },
 
   async approveRequest(eventId: string, userId: string): Promise<void> {
-    const event = await this.getEvent(eventId);
-    if (!event) throw new Error('Event not found');
+    // First, get the current event state directly from database to ensure we have latest data
+    const { data: currentEventData, error: fetchError } = await supabase
+      .from('events')
+      .select('players, current_players, max_players, status')
+      .eq('id', eventId)
+      .single();
     
-    if (event.players.includes(userId)) {
+    if (fetchError || !currentEventData) {
+      throw new Error('Event not found');
+    }
+    
+    // Ensure players is an array
+    let currentPlayers: string[] = [];
+    if (currentEventData.players) {
+      if (Array.isArray(currentEventData.players)) {
+        currentPlayers = currentEventData.players.map(p => String(p));
+      } else {
+        currentPlayers = [String(currentEventData.players)];
+      }
+    }
+    
+    console.log('Current players in database:', currentPlayers);
+    console.log('Adding userId:', userId);
+    
+    if (currentPlayers.includes(String(userId))) {
       throw new Error('User already joined this event');
     }
     
-    if (event.status === 'full') {
+    if (currentEventData.status === 'full') {
       throw new Error('Event is full');
     }
     
@@ -181,48 +234,116 @@ export const eventService = {
       throw new Error('No pending request found to approve');
     }
     
-    // Add user to event players
-    const updatedPlayers = [...event.players, userId];
-    const status = updatedPlayers.length >= event.maxPlayers ? 'full' : event.status;
+    // Add user to event players - use the current players from database
+    const updatedPlayers = [...currentPlayers, String(userId)];
+    const status = updatedPlayers.length >= currentEventData.max_players ? 'full' : currentEventData.status;
     
     console.log('Approving request - updating event players:', {
       eventId,
       userId,
-      oldPlayers: event.players,
+      oldPlayers: currentPlayers,
       newPlayers: updatedPlayers,
       currentPlayers: updatedPlayers.length,
       status
     });
     
-    const updateResult = await this.updateEvent(eventId, {
-      players: updatedPlayers,
-      currentPlayers: updatedPlayers.length,
-      status: status as Event['status'],
-    });
+    // Try using the database function first (bypasses RLS and handles array properly)
+    console.log('Attempting to use approve_player_request function...');
+    const { data: functionResult, error: functionError } = await supabase
+      .rpc('approve_player_request', {
+        p_event_id: eventId,
+        p_user_id: userId
+      });
     
-    // Use the returned data from updateEvent if available, otherwise query
-    let updatedEvent = updateResult ? mapEventFromDB(updateResult) : await this.getEvent(eventId);
-    
-    // If still not found, wait a bit and try again (database replication delay)
-    if (!updatedEvent || !updatedEvent.players.includes(userId)) {
-      console.log('Player not immediately found, waiting for database sync...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      updatedEvent = await this.getEvent(eventId);
+    if (!functionError && functionResult) {
+      console.log('✅ Successfully used database function:', functionResult);
+      // Verify the update worked
+      const verifyResult = await supabase
+        .from('events')
+        .select('players')
+        .eq('id', eventId)
+        .single();
+      
+      if (verifyResult.data) {
+        const dbPlayers = Array.isArray(verifyResult.data.players)
+          ? verifyResult.data.players.map(p => String(p))
+          : [String(verifyResult.data.players)];
+        
+        if (dbPlayers.includes(String(userId))) {
+          console.log('✅ Player successfully added via database function!');
+          return;
+        }
+      }
     }
     
-    console.log('Event after approval:', updatedEvent);
-    if (!updatedEvent) {
-      throw new Error('Failed to retrieve updated event');
+    // Fallback to direct update if function doesn't exist or failed
+    console.log('Database function not available or failed, using direct update. Error:', functionError);
+    console.log('Updating event directly with players array:', updatedPlayers);
+    console.log('Array length:', updatedPlayers.length);
+    console.log('Array contents:', JSON.stringify(updatedPlayers));
+    
+    const { data: updateData, error: eventUpdateError } = await supabase
+      .from('events')
+      .update({ 
+        players: updatedPlayers,
+        current_players: updatedPlayers.length,
+        status: status
+      })
+      .eq('id', eventId)
+      .select('players, current_players, status');
+    
+    console.log('Direct update result:', updateData);
+    console.log('Direct update error:', eventUpdateError);
+    
+    if (eventUpdateError) {
+      console.error('Failed to update event:', eventUpdateError);
+      throw new Error(`Failed to update event: ${eventUpdateError.message}. Check RLS policies - you must be the event organizer. If this persists, run the approve_player_request.sql migration.`);
     }
     
-    // Log detailed info for debugging
-    if (!updatedEvent.players.includes(userId)) {
-      console.warn('Player not found in updated event, but update may have succeeded.');
-      console.warn('Expected userId:', userId);
-      console.warn('Event players:', updatedEvent.players);
-      console.warn('Event players is array:', Array.isArray(updatedEvent.players));
-      // Don't throw - the update likely succeeded, just a timing/caching issue
-      // The context reload will pick it up
+    // Immediately verify by querying the database
+    await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for DB sync
+    
+    const verifyResult = await supabase
+      .from('events')
+      .select('players, current_players')
+      .eq('id', eventId)
+      .single();
+    
+    console.log('Verification query result:', verifyResult);
+    
+    if (verifyResult.error) {
+      console.error('Verification query error:', verifyResult.error);
+      throw new Error(`Failed to verify player addition: ${verifyResult.error.message}`);
+    }
+    
+    if (verifyResult.data) {
+      const dbPlayers = verifyResult.data.players || [];
+      console.log('Players in database after update:', dbPlayers);
+      
+      // Normalize for comparison
+      const normalizedDbPlayers = Array.isArray(dbPlayers) 
+        ? dbPlayers.map(p => String(p))
+        : [String(dbPlayers)];
+      const normalizedUserId = String(userId);
+      
+      console.log('Normalized DB players:', normalizedDbPlayers);
+      console.log('Normalized userId:', normalizedUserId);
+      console.log('UserId in array?', normalizedDbPlayers.includes(normalizedUserId));
+      console.log('Expected players:', updatedPlayers);
+      console.log('Actual players in DB:', normalizedDbPlayers);
+      
+      if (normalizedDbPlayers.includes(normalizedUserId)) {
+        console.log('✅ Player successfully added to event!');
+        return; // Success!
+      } else {
+        // The update didn't work - the array wasn't updated
+        console.error('❌ CRITICAL: Player was NOT added to database!');
+        console.error('Expected array:', updatedPlayers);
+        console.error('Actual array in DB:', normalizedDbPlayers);
+        throw new Error(`Failed to add player to event. Expected players: ${JSON.stringify(updatedPlayers)}, but database shows: ${JSON.stringify(normalizedDbPlayers)}. This is likely an RLS policy issue. Please run the approve_player_request.sql migration to create a database function that bypasses RLS.`);
+      }
+    } else {
+      throw new Error('Verification query returned no data');
     }
   },
 
@@ -313,6 +434,41 @@ export const eventService = {
       
       if (error) {
         // PGRST116 is "no rows found" - this is expected if no request exists
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        // If table doesn't exist (42P01), return null gracefully
+        if (error.code === '42P01') {
+          console.warn('event_requests table does not exist yet. Please run the migration.');
+          return null;
+        }
+        throw error;
+      }
+      return data ? mapEventRequestFromDB(data) : null;
+    } catch (error: any) {
+      // If table doesn't exist, return null instead of throwing
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        console.warn('event_requests table does not exist yet. Please run the migration.');
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  async getUserApprovedRequest(eventId: string, userId: string): Promise<EventRequest | null> {
+    try {
+      const { data, error } = await supabase
+        .from('event_requests')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error) {
+        // PGRST116 is "no rows found" - this is expected if no approved request exists
         if (error.code === 'PGRST116') {
           return null;
         }

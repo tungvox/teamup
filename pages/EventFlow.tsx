@@ -817,30 +817,40 @@ export const OrganizerDashboard: React.FC = () => {
       // Call the approve function
       await approveRequest(id, userId);
       
-      // Reload from context to ensure we have the latest data
-      // Wait a bit longer and check multiple times to ensure context has updated
-      const checkAndUpdate = (attempts = 0) => {
-        const contextEvent = getEvent(id);
-        if (contextEvent && contextEvent.players.includes(userId)) {
-          // Context has the updated player, use it
-          setEvent(contextEvent);
-          loadPlayers(contextEvent.players);
-          loadPendingRequestsForEvent(id);
-        } else if (attempts < 5) {
-          // Context not updated yet, try again
-          setTimeout(() => checkAndUpdate(attempts + 1), 200);
-        } else {
-          // After multiple attempts, check events array directly
-          const foundEvent = events.find(e => e.id === id);
-          if (foundEvent && foundEvent.players.includes(userId)) {
-            setEvent(foundEvent);
-            loadPlayers(foundEvent.players);
+      // Reload directly from database to ensure we have the latest data
+      const checkAndUpdate = async (attempts = 0) => {
+        try {
+          const { eventService } = await import('../services/supabaseService');
+          const dbEvent = await eventService.getEvent(id);
+          
+          if (dbEvent && dbEvent.players.includes(userId)) {
+            console.log('OrganizerDashboard: Player found in database after approval');
+            setEvent(dbEvent);
+            await loadPlayers(dbEvent.players);
+            await loadPendingRequestsForEvent(id);
+          } else if (attempts < 10) {
+            // Try again after a delay
+            setTimeout(() => checkAndUpdate(attempts + 1), 300);
+          } else {
+            console.warn('OrganizerDashboard: Player not found after multiple attempts');
+            // Fallback to context
+            const contextEvent = getEvent(id);
+            if (contextEvent) {
+              setEvent(contextEvent);
+              await loadPlayers(contextEvent.players);
+            }
+            await loadPendingRequestsForEvent(id);
           }
-          loadPendingRequestsForEvent(id);
+        } catch (error) {
+          console.error('OrganizerDashboard: Error checking update:', error);
+          if (attempts < 5) {
+            setTimeout(() => checkAndUpdate(attempts + 1), 300);
+          }
         }
       };
       
-      setTimeout(() => checkAndUpdate(), 300);
+      // Start checking immediately
+      setTimeout(() => checkAndUpdate(), 500);
     } catch (error: any) {
       console.error('Error approving request:', error);
       // Revert optimistic update on error
@@ -1029,13 +1039,14 @@ export const EventDetails: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { getEvent, requestToJoin, leaveEvent, events, getUserPendingRequest, getUserEventRequest } = useEvents();
+  const { getEvent, requestToJoin, leaveEvent, events, getUserPendingRequest, getUserEventRequest, getUserApprovedRequest } = useEvents();
   const { getOrCreateChat } = useMessages();
   const [event, setEvent] = useState<Event | null>(null);
   const [players, setPlayers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -1045,53 +1056,70 @@ export const EventDetails: React.FC = () => {
       }
 
       try {
-        const eventData = getEvent(id);
+        // Force reload from database first to get latest data
+        const { eventService } = await import('../services/supabaseService');
+        let eventData = await eventService.getEvent(id);
+        
+        // If not found in database, try context
+        if (!eventData) {
+          eventData = getEvent(id);
+        }
+        
+        // If still not found, try events array
+        if (!eventData) {
+          eventData = events.find(e => e.id === id);
+        }
+        
         if (eventData) {
+          console.log('EventDetails: Loaded event with players:', eventData.players);
+          // Always update event and players to ensure we have latest data
           setEvent(eventData);
-          loadPlayers(eventData.players);
+          await loadPlayers(eventData.players);
           
-          // Check if user has a pending request
-          // If user is in players list, they're approved/joined, so no pending request
+          // Check if user has a pending or approved request
+          // If user is in players list, they're approved/joined
           if (user) {
             if (eventData.players.includes(user.id)) {
               setHasPendingRequest(false);
+              setHasApprovedRequest(false);
             } else {
               try {
                 const pendingRequest = await getUserPendingRequest(id);
                 setHasPendingRequest(!!pendingRequest);
+                // Also check for approved request (in case approval happened but event hasn't reloaded)
+                if (!pendingRequest) {
+                  const approvedRequest = await getUserApprovedRequest(id);
+                  setHasApprovedRequest(!!approvedRequest);
+                  // If user has approved request but isn't in players list yet, 
+                  // the approval might have just happened - reload event after a short delay
+                  if (approvedRequest) {
+                    setTimeout(async () => {
+                      const refreshedEvent = getEvent(id);
+                      if (refreshedEvent && refreshedEvent.players.includes(user.id)) {
+                        setEvent(refreshedEvent);
+                        await loadPlayers(refreshedEvent.players);
+                        setHasApprovedRequest(false); // Clear approved request flag since they're now in players
+                      }
+                    }, 1000);
+                  }
+                } else {
+                  setHasApprovedRequest(false);
+                }
               } catch (error) {
-                console.error('Error checking pending request:', error);
+                console.error('Error checking request status:', error);
                 setHasPendingRequest(false);
+                setHasApprovedRequest(false);
               }
             }
           } else {
             setHasPendingRequest(false);
+            setHasApprovedRequest(false);
           }
         } else {
-          // If event not found in context, try to find it in events array
-          const foundEvent = events.find(e => e.id === id);
-          if (foundEvent) {
-            setEvent(foundEvent);
-            loadPlayers(foundEvent.players);
-            
-            // Check if user has a pending request
-            // If user is in players list, they're approved/joined, so no pending request
-            if (user) {
-              if (foundEvent.players.includes(user.id)) {
-                setHasPendingRequest(false);
-              } else {
-                try {
-                  const pendingRequest = await getUserPendingRequest(id);
-                  setHasPendingRequest(!!pendingRequest);
-                } catch (error) {
-                  console.error('Error checking pending request:', error);
-                  setHasPendingRequest(false);
-                }
-              }
-            } else {
-              setHasPendingRequest(false);
-            }
-          }
+          // Event not found - this shouldn't happen if we loaded from DB above
+          console.warn('EventDetails: Event not found in any source');
+          setHasPendingRequest(false);
+          setHasApprovedRequest(false);
         }
       } catch (error) {
         console.error('Error loading event:', error);
@@ -1101,7 +1129,68 @@ export const EventDetails: React.FC = () => {
     };
 
     loadEvent();
-  }, [id, getEvent, events, user, getUserPendingRequest]);
+    
+    // Also set up a periodic refresh to catch updates from other users
+    const refreshInterval = setInterval(async () => {
+      if (!id) return;
+      
+      // Reload directly from database to get latest data
+      try {
+        const { eventService } = await import('../services/supabaseService');
+        const dbEvent = await eventService.getEvent(id);
+        if (dbEvent) {
+          console.log('EventDetails: Periodic refresh - players:', dbEvent.players, 'count:', dbEvent.players.length);
+          
+          // Check if players array changed by comparing with current event state
+          setEvent(prevEvent => {
+            if (!prevEvent) {
+              console.log('EventDetails: No previous event, setting new event');
+              // Load players outside setState
+              setTimeout(() => loadPlayers(dbEvent.players), 0);
+              return dbEvent;
+            }
+            
+            // Check if players array changed
+            const prevPlayerIds = [...prevEvent.players].sort().join(',');
+            const currentPlayerIds = [...dbEvent.players].sort().join(',');
+            const playersChanged = prevPlayerIds !== currentPlayerIds || prevEvent.players.length !== dbEvent.players.length;
+            
+            if (playersChanged) {
+              console.log('EventDetails: Players changed!');
+              console.log('EventDetails: Previous players:', prevEvent.players);
+              console.log('EventDetails: New players:', dbEvent.players);
+              // Load players outside setState to avoid issues
+              setTimeout(() => loadPlayers(dbEvent.players), 0);
+              // Return new event object to trigger re-render
+              return { ...dbEvent };
+            }
+            // Even if players didn't change, update other fields that might have changed
+            if (prevEvent.currentPlayers !== dbEvent.currentPlayers || 
+                prevEvent.status !== dbEvent.status) {
+              return { ...dbEvent };
+            }
+            return prevEvent;
+          });
+        }
+      } catch (error) {
+        console.error('EventDetails: Error refreshing event:', error);
+      }
+    }, 2000); // Check every 2 seconds
+    
+    return () => clearInterval(refreshInterval);
+  }, [id, getEvent, events, user, getUserPendingRequest, getUserApprovedRequest]);
+
+  // Reload players whenever event.players changes
+  useEffect(() => {
+    if (event && event.players && event.players.length > 0) {
+      const playersKey = event.players.sort().join(',');
+      console.log('EventDetails: event.players changed, reloading player profiles:', event.players);
+      loadPlayers(event.players);
+    } else if (event && (!event.players || event.players.length === 0)) {
+      setPlayers([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.players ? event.players.sort().join(',') : '']); // Use sorted join to create a stable dependency
 
   const loadPlayers = async (playerIds: string[]) => {
     if (playerIds.length === 0) {
@@ -1173,6 +1262,7 @@ export const EventDetails: React.FC = () => {
       
       // Optimistically update the UI
       setHasPendingRequest(true);
+      setHasApprovedRequest(false);
       console.log('Set hasPendingRequest to true');
       
       await requestToJoin(event.id);
@@ -1184,14 +1274,19 @@ export const EventDetails: React.FC = () => {
           const pendingRequest = await getUserPendingRequest(event.id);
           console.log('Verified pending request:', pendingRequest);
           setHasPendingRequest(!!pendingRequest);
+          if (!pendingRequest) {
+            const approvedRequest = await getUserApprovedRequest(event.id);
+            setHasApprovedRequest(!!approvedRequest);
+          }
         } catch (error) {
-          console.error('Error verifying pending request:', error);
+          console.error('Error verifying request status:', error);
         }
       }, 500);
     } catch (err: any) {
       console.error('Error requesting to join event:', err);
       // Revert optimistic update on error
       setHasPendingRequest(false);
+      setHasApprovedRequest(false);
       alert(err.message || 'Failed to request to join event');
     } finally {
       setIsJoining(false);
@@ -1209,6 +1304,9 @@ export const EventDetails: React.FC = () => {
       if (updatedEvent) {
         setEvent(updatedEvent);
         loadPlayers(updatedEvent.players);
+        // Reset request states
+        setHasPendingRequest(false);
+        setHasApprovedRequest(false);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to leave event');
@@ -1249,6 +1347,8 @@ export const EventDetails: React.FC = () => {
   const isJoined = user && event.players.includes(user.id);
   const isOrganizer = user && event.organizerId === user.id;
   const isFull = spotsLeft === 0;
+  // User is considered approved if they're in the players list OR have an approved request
+  const isApproved = isJoined || hasApprovedRequest;
 
   return (
     <div className="bg-background min-h-screen flex flex-col relative pb-24">
@@ -1372,28 +1472,54 @@ export const EventDetails: React.FC = () => {
             </span>
           </div>
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-            {players.map((player, idx) => {
-              const isOrganizerPlayer = player.id === event.organizerId;
-              return (
-                <div key={player.id} className="flex flex-col items-center gap-2 min-w-[60px]">
-                <div className="relative">
-                    <Avatar 
-                      src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`} 
-                      size="w-16 h-16" 
-                      className={isOrganizerPlayer ? 'border-yellow-400' : ''} 
-                    />
-                    {isOrganizerPlayer && (
-                      <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 rounded border border-white">
-                        HOST
-                </div>
-                    )}
+            {/* Show players from event.players array, not just loaded players state */}
+            {event.players.length > 0 ? (
+              event.players.map((playerId) => {
+                const player = players.find(p => p.id === playerId);
+                const isOrganizerPlayer = playerId === event.organizerId;
+                // If player profile not loaded yet, show placeholder
+                if (!player) {
+                  return (
+                    <div key={playerId} className="flex flex-col items-center gap-2 min-w-[60px]">
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-400">person</span>
+                        </div>
+                        {isOrganizerPlayer && (
+                          <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 rounded border border-white">
+                            HOST
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-medium text-slate-400 text-center">Loading...</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={player.id} className="flex flex-col items-center gap-2 min-w-[60px]">
+                    <div className="relative">
+                      <Avatar 
+                        src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`} 
+                        size="w-16 h-16" 
+                        className={isOrganizerPlayer ? 'border-yellow-400' : ''} 
+                      />
+                      {isOrganizerPlayer && (
+                        <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 rounded border border-white">
+                          HOST
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-slate-300 text-center">
+                      {player.firstName} {player.lastName}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center text-slate-400 text-sm py-4 w-full">
+                No players yet
               </div>
-                  <span className="text-xs font-medium text-slate-300 text-center">
-                    {player.firstName} {player.lastName}
-                  </span>
-                </div>
-              );
-            })}
+            )}
             {!isFull && (
             <div className="flex flex-col items-center gap-2 min-w-[60px]">
               <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-600 bg-white/5 flex items-center justify-center text-slate-500">
@@ -1451,18 +1577,20 @@ export const EventDetails: React.FC = () => {
           {!isOrganizer ? (
             <button 
               onClick={isJoined ? handleLeave : handleJoin}
-              disabled={isJoining || (isFull && !isJoined) || hasPendingRequest || !user}
+              disabled={isJoining || (isFull && !isApproved) || hasPendingRequest || !user}
               className={`flex-1 h-14 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
                 isJoined
                   ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
                   : hasPendingRequest
                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 cursor-not-allowed'
+                  : isApproved
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/20 cursor-not-allowed'
                   : isFull
                   ? 'bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed'
                   : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
               }`}
             >
-              {isJoining ? 'Loading...' : isJoined ? 'Leave Event' : hasPendingRequest ? 'Requested' : isFull ? 'Event Full' : 'Request to Join'}
+              {isJoining ? 'Loading...' : isJoined ? 'Leave Event' : hasPendingRequest ? 'Requested' : isApproved ? 'Approved' : isFull ? 'Event Full' : 'Request to Join'}
             </button>
           ) : (
             <button 

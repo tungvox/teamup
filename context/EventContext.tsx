@@ -15,6 +15,8 @@ interface EventContextType {
   denyRequest: (eventId: string, userId: string) => Promise<void>;
   getEventRequests: (eventId: string) => Promise<EventRequest[]>;
   getUserPendingRequest: (eventId: string) => Promise<EventRequest | null>;
+  getUserEventRequest: (eventId: string) => Promise<EventRequest | null>;
+  getUserApprovedRequest: (eventId: string) => Promise<EventRequest | null>;
   joinEvent: (eventId: string) => Promise<void>;
   leaveEvent: (eventId: string) => Promise<void>;
   getEvent: (id: string) => Event | undefined;
@@ -79,8 +81,20 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const approveRequest = async (eventId: string, userId: string) => {
     if (!user) throw new Error('Must be logged in to approve requests');
+    console.log('EventContext: Approving request for event:', eventId, 'user:', userId);
     await eventService.approveRequest(eventId, userId);
-    await loadEvents(); // Wait for events to reload
+    console.log('EventContext: Approval complete, reloading events...');
+    // Reload events to ensure both owner and player see the updated state
+    await loadEvents();
+    // Force a small delay to ensure database has updated
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // Reload again to catch any replication delay
+    await loadEvents();
+    // One more reload after a longer delay
+    setTimeout(async () => {
+      await loadEvents();
+      console.log('EventContext: Final reload complete');
+    }, 1000);
   };
 
   const denyRequest = async (eventId: string, userId: string) => {
@@ -101,6 +115,11 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const getUserEventRequest = async (eventId: string) => {
     if (!user) return null;
     return await eventService.getUserEventRequest(eventId, user.id);
+  };
+
+  const getUserApprovedRequest = async (eventId: string) => {
+    if (!user) return null;
+    return await eventService.getUserApprovedRequest(eventId, user.id);
   };
 
   const joinEvent = async (eventId: string) => {
@@ -174,6 +193,7 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         getEventRequests,
         getUserPendingRequest,
         getUserEventRequest,
+        getUserApprovedRequest,
         joinEvent,
         leaveEvent,
         getEvent,
