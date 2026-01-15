@@ -162,6 +162,7 @@ export const AuthSelection: React.FC = () => {
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { isAuthenticated, isLoading, clerkUser } = useAuth();
 
   useEffect(() => {
@@ -201,10 +202,10 @@ export const Login: React.FC = () => {
         <div className="w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-extrabold mb-3 tracking-tight">
-              Welcome <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">Back!</span>
+              {t('onboarding.welcomeBack')} <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">{t('onboarding.back')}</span>
             </h1>
-           <p className="text-slate-400 font-medium">Let's get you back on the court.</p>
+           <p className="text-slate-400 font-medium">{t('onboarding.getBackOnCourt')}</p>
          </div>
           <SignIn 
             routing="hash"

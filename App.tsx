@@ -1,25 +1,54 @@
-import React from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { ClerkProvider } from '@clerk/clerk-react';
-import { OnboardingLanding, CreateProfile, SetLocation, RegistrationSuccess, Login, AuthSelection } from './pages/Onboarding';
-import { Home, MyEvents, Messages, Profile } from './pages/Dashboard';
-import { EventDetails, CreateEvent, EditEvent, OrganizerDashboard, EventCreated } from './pages/EventFlow';
-import { ChatDetail, NotificationSettings, RatePlayers } from './pages/Interaction';
-import { BottomNav } from './components/Layout';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
-import { EventProvider } from './context/EventContext';
-import { MessageProvider } from './context/MessageContext';
-import { SettingsProvider } from './context/SettingsContext';
-import { LanguageProvider } from './context/LanguageContext';
-import { clerkPubKey } from './lib/clerk';
+import React from "react";
+import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
+import { ClerkProvider } from "@clerk/clerk-react";
+import {
+  OnboardingLanding,
+  CreateProfile,
+  SetLocation,
+  RegistrationSuccess,
+  Login,
+  AuthSelection,
+} from "./pages/Onboarding";
+import { Home, MyEvents, Messages, Profile } from "./pages/Dashboard";
+import {
+  EventDetails,
+  CreateEvent,
+  EditEvent,
+  OrganizerDashboard,
+  EventCreated,
+} from "./pages/EventFlow";
+import {
+  ChatDetail,
+  NotificationSettings,
+  RatePlayers,
+} from "./pages/Interaction";
+import { BottomNav } from "./components/Layout";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AuthProvider } from "./context/AuthContext";
+import { EventProvider } from "./context/EventContext";
+import { MessageProvider } from "./context/MessageContext";
+import { SettingsProvider } from "./context/SettingsContext";
+import { LanguageProvider } from "./context/LanguageContext";
+import { clerkPubKey } from "./lib/clerk";
 
 const AppContent: React.FC = () => {
   const location = useLocation();
   // Routes where the bottom navigation should appear
-  const showBottomNav = ['/home', '/my-games', '/messages', '/profile'].includes(location.pathname);
+  const showBottomNav = [
+    "/home",
+    "/my-games",
+    "/messages",
+    "/profile",
+  ].includes(location.pathname);
   // Routes that should be full width (onboarding, auth, etc.)
-  const isFullWidthRoute = ['/', '/auth', '/login', '/create-profile', '/set-location', '/success'].includes(location.pathname);
+  const isFullWidthRoute = [
+    "/",
+    "/auth",
+    "/login",
+    "/create-profile",
+    "/set-location",
+    "/success",
+  ].includes(location.pathname);
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-background relative overflow-hidden">
@@ -29,39 +58,127 @@ const AppContent: React.FC = () => {
           <BottomNav />
         </div>
       )}
-      
+
       {/* Responsive container - full width on larger screens */}
-      <div className={`w-full h-full bg-background shadow-2xl min-h-screen flex flex-col ${isFullWidthRoute ? '' : 'lg:w-[calc(100%-4rem)] lg:ml-16'}`}>
+      <div
+        className={`w-full h-full bg-background shadow-2xl min-h-screen flex flex-col ${
+          isFullWidthRoute ? "" : "lg:w-[calc(100%-4rem)] lg:ml-16"
+        }`}
+      >
         <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full h-full">
-        <Routes>
-          {/* Onboarding Flow */}
-          <Route path="/" element={<OnboardingLanding />} />
-          <Route path="/auth" element={<AuthSelection />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/create-profile" element={<CreateProfile />} />
-          <Route path="/set-location" element={<SetLocation />} />
-          <Route path="/success" element={<RegistrationSuccess />} />
+          <Routes>
+            {/* Onboarding Flow */}
+            <Route path="/" element={<OnboardingLanding />} />
+            <Route path="/auth" element={<AuthSelection />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/create-profile" element={<CreateProfile />} />
+            <Route path="/set-location" element={<SetLocation />} />
+            <Route path="/success" element={<RegistrationSuccess />} />
 
-          {/* Main Tabs */}
-          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/my-games" element={<ProtectedRoute><MyEvents /></ProtectedRoute>} />
-          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            {/* Main Tabs */}
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-games"
+              element={
+                <ProtectedRoute>
+                  <MyEvents />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Event Flows */}
-          <Route path="/event/:id" element={<ProtectedRoute><EventDetails /></ProtectedRoute>} />
-          <Route path="/event/create" element={<ProtectedRoute><CreateEvent /></ProtectedRoute>} />
-          <Route path="/event/edit/:id" element={<ProtectedRoute><EditEvent /></ProtectedRoute>} />
-          <Route path="/event/manage/:id" element={<ProtectedRoute><OrganizerDashboard /></ProtectedRoute>} />
-          <Route path="/event/created" element={<ProtectedRoute><EventCreated /></ProtectedRoute>} />
+            {/* Event Flows */}
+            <Route
+              path="/event/:id"
+              element={
+                <ProtectedRoute>
+                  <EventDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/event/create"
+              element={
+                <ProtectedRoute>
+                  <CreateEvent />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/event/edit/:id"
+              element={
+                <ProtectedRoute>
+                  <EditEvent />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/event/manage/:id"
+              element={
+                <ProtectedRoute>
+                  <OrganizerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/event/created"
+              element={
+                <ProtectedRoute>
+                  <EventCreated />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Interaction Flows */}
-          <Route path="/chat/:id" element={<ProtectedRoute><ChatDetail /></ProtectedRoute>} />
-          <Route path="/settings/notifications" element={<ProtectedRoute><NotificationSettings /></ProtectedRoute>} />
-          <Route path="/rate-players/:id" element={<ProtectedRoute><RatePlayers /></ProtectedRoute>} />
-        </Routes>
-      </main>
-      
+            {/* Interaction Flows */}
+            <Route
+              path="/chat/:id"
+              element={
+                <ProtectedRoute>
+                  <ChatDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/notifications"
+              element={
+                <ProtectedRoute>
+                  <NotificationSettings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rate-players/:id"
+              element={
+                <ProtectedRoute>
+                  <RatePlayers />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </main>
+
         {/* Bottom Navigation - shows on mobile/tablet */}
         {showBottomNav && (
           <div className="lg:hidden">
@@ -86,22 +203,22 @@ const App: React.FC = () => {
       </div>
     );
   }
-  
+
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
-    <HashRouter>
-          <AuthProvider>
-            <LanguageProvider>
-              <EventProvider>
-                <MessageProvider>
-                  <SettingsProvider>
-                    <AppContent />
-                  </SettingsProvider>
-                </MessageProvider>
-              </EventProvider>
-            </LanguageProvider>
-          </AuthProvider>
-    </HashRouter>
+      <HashRouter>
+        <AuthProvider>
+          <LanguageProvider>
+            <EventProvider>
+              <MessageProvider>
+                <SettingsProvider>
+                  <AppContent />
+                </SettingsProvider>
+              </MessageProvider>
+            </EventProvider>
+          </LanguageProvider>
+        </AuthProvider>
+      </HashRouter>
     </ClerkProvider>
   );
 };
