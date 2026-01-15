@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Event, EventRequest } from '../types';
 import { eventService } from '../services/supabaseService';
 import { useAuth } from './AuthContext';
+import { logger } from '../utils/logger';
 
 interface EventContextType {
   events: Event[];
@@ -14,9 +15,14 @@ interface EventContextType {
   approveRequest: (eventId: string, userId: string) => Promise<void>;
   denyRequest: (eventId: string, userId: string) => Promise<void>;
   getEventRequests: (eventId: string) => Promise<EventRequest[]>;
+  getEventInvitations: (eventId: string) => Promise<EventRequest[]>;
   getUserPendingRequest: (eventId: string) => Promise<EventRequest | null>;
   getUserEventRequest: (eventId: string) => Promise<EventRequest | null>;
   getUserApprovedRequest: (eventId: string) => Promise<EventRequest | null>;
+  inviteFriendToEvent: (eventId: string, friendId: string) => Promise<void>;
+  getUserInvitations: () => Promise<EventRequest[]>;
+  acceptInvitation: (eventId: string) => Promise<void>;
+  denyInvitation: (eventId: string) => Promise<void>;
   joinEvent: (eventId: string) => Promise<void>;
   leaveEvent: (eventId: string) => Promise<void>;
   getEvent: (id: string) => Event | undefined;
@@ -40,7 +46,7 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const allEvents = await eventService.getAllEvents();
       setEvents(allEvents);
     } catch (error) {
-      console.error('Error loading events:', error);
+      logger.error('Error loading events:', error);
       setEvents([]);
     } finally {
       setIsLoading(false);
@@ -81,20 +87,32 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const approveRequest = async (eventId: string, userId: string) => {
     if (!user) throw new Error('Must be logged in to approve requests');
-    console.log('EventContext: Approving request for event:', eventId, 'user:', userId);
-    await eventService.approveRequest(eventId, userId);
-    console.log('EventContext: Approval complete, reloading events...');
-    // Reload events to ensure both owner and player see the updated state
-    await loadEvents();
-    // Force a small delay to ensure database has updated
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // Reload again to catch any replication delay
-    await loadEvents();
-    // One more reload after a longer delay
-    setTimeout(async () => {
+    
+    // Optimistically update the local state
+    setEvents(prevEvents => {
+      return prevEvents.map(event => {
+        if (event.id === eventId && !event.players.includes(userId)) {
+          const updatedPlayers = [...event.players, userId];
+          return {
+            ...event,
+            players: updatedPlayers,
+            currentPlayers: updatedPlayers.length,
+            status: updatedPlayers.length >= event.maxPlayers ? 'full' : event.status,
+          };
+        }
+        return event;
+      });
+    });
+    
+    try {
+      await eventService.approveRequest(eventId, userId);
+      // Reload events once to sync with server state
       await loadEvents();
-      console.log('EventContext: Final reload complete');
-    }, 1000);
+    } catch (error) {
+      // Revert optimistic update on error
+      await loadEvents();
+      throw error;
+    }
   };
 
   const denyRequest = async (eventId: string, userId: string) => {
@@ -105,6 +123,10 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const getEventRequests = async (eventId: string) => {
     return await eventService.getEventRequests(eventId);
+  };
+
+  const getEventInvitations = async (eventId: string) => {
+    return await eventService.getEventInvitations(eventId);
   };
 
   const getUserPendingRequest = async (eventId: string) => {
@@ -120,6 +142,29 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const getUserApprovedRequest = async (eventId: string) => {
     if (!user) return null;
     return await eventService.getUserApprovedRequest(eventId, user.id);
+  };
+
+  const inviteFriendToEvent = async (eventId: string, friendId: string) => {
+    if (!user) throw new Error('Must be logged in to invite friends');
+    await eventService.inviteFriendToEvent(eventId, friendId, user.id);
+    loadEvents();
+  };
+
+  const getUserInvitations = async () => {
+    if (!user) return [];
+    return await eventService.getUserInvitations(user.id);
+  };
+
+  const acceptInvitation = async (eventId: string) => {
+    if (!user) throw new Error('Must be logged in to accept invitations');
+    await eventService.acceptInvitation(eventId, user.id);
+    loadEvents();
+  };
+
+  const denyInvitation = async (eventId: string) => {
+    if (!user) throw new Error('Must be logged in to deny invitations');
+    await eventService.denyInvitation(eventId, user.id);
+    loadEvents();
   };
 
   const joinEvent = async (eventId: string) => {
@@ -191,9 +236,14 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         approveRequest,
         denyRequest,
         getEventRequests,
+        getEventInvitations,
         getUserPendingRequest,
         getUserEventRequest,
         getUserApprovedRequest,
+        inviteFriendToEvent,
+        getUserInvitations,
+        acceptInvitation,
+        denyInvitation,
         joinEvent,
         leaveEvent,
         getEvent,

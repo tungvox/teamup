@@ -2,10 +2,11 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { GoogleMap, Autocomplete, Marker } from '@react-google-maps/api';
 import { googleMapsMapId, googleMapsDefaultLocation } from '../lib/googleMaps';
 import { useGoogleMaps } from '../lib/useGoogleMaps';
+import { useLanguage } from '../context/LanguageContext';
 
 const mapContainerStyle = {
   width: '100%',
-  height: '200px',
+  height: '100%',
 };
 
 interface LocationPickerProps {
@@ -19,6 +20,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
   onLocationChange,
   className = '',
 }) => {
+  const { t } = useLanguage();
   const { isLoaded: isScriptLoaded, error: mapError, apiKey: googleMapsApiKey } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [mapCenter, setMapCenter] = useState(googleMapsDefaultLocation);
@@ -111,11 +113,11 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 
   // Fallback map placeholder
   const fallbackMap = (
-    <div className="rounded-lg overflow-hidden border border-white/10 h-48 bg-slate-800 flex items-center justify-center">
+    <div className="rounded-lg overflow-hidden border border-white/10 h-32 bg-slate-800 flex items-center justify-center lg:h-24 lg:rounded">
       <div className="text-center text-slate-400">
-        <span className="material-symbols-outlined text-4xl mb-2 block">map</span>
-        <p className="text-sm">Map preview unavailable</p>
-        <p className="text-xs mt-1">Enter location address above</p>
+        <span className="material-symbols-outlined text-3xl mb-1 block lg:text-2xl">map</span>
+        <p className="text-xs lg:text-[10px]">{t('events.mapUnavailable')}</p>
+        <p className="text-xs mt-1 lg:text-[10px] lg:mt-0.5">{t('events.enterLocationAbove')}</p>
       </div>
     </div>
   );
@@ -146,7 +148,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
       <div className={className}>
         <input
           type="text"
-          placeholder="Enter location address..."
+          placeholder={t('events.locationPlaceholder')}
           value={location}
           onChange={(e) => onLocationChange(e.target.value)}
           className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-3"
@@ -167,105 +169,105 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
 
   return (
     <div className={className}>
-      {isScriptLoaded && !mapError ? (
-        <>
-          {/* Autocomplete wraps the input element */}
-          <Autocomplete
-            onLoad={onLoad}
-            onPlaceChanged={onPlaceChanged}
-            options={{
-              types: ['establishment', 'geocode'],
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Search for a location or enter address..."
-              value={location}
-              onChange={(e) => {
-                const value = e.target.value;
-                onLocationChange(value);
-                // Clear marker if input is cleared
-                if (!value) {
-                  setSelectedLocation(null);
-                }
-              }}
-              className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-3"
-            />
-          </Autocomplete>
-          
-          <div className="rounded-lg overflow-hidden border border-white/10">
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              center={mapCenter}
-              zoom={selectedLocation ? 15 : 10}
-              onClick={onMapClick}
-              onLoad={onMapLoad}
-              options={{
-                disableDefaultUI: true,
-                zoomControl: true,
-                streetViewControl: false,
-                mapTypeControl: false,
-                fullscreenControl: false,
-                // Use custom map style (mapId) if provided, otherwise use inline styles
-                ...(googleMapsMapId ? { mapId: googleMapsMapId } : {
-                  styles: [
-                    {
-                      featureType: 'all',
-                      elementType: 'geometry',
-                      stylers: [{ color: '#1C232B' }],
-                    },
-                    {
-                      featureType: 'all',
-                      elementType: 'labels.text.fill',
-                      stylers: [{ color: '#93a2b7' }],
-                    },
-                    {
-                      featureType: 'water',
-                      elementType: 'geometry',
-                      stylers: [{ color: '#0d7cf2' }],
-                    },
-                    {
-                      featureType: 'road',
-                      elementType: 'geometry',
-                      stylers: [{ color: '#2d3748' }],
-                    },
-                  ],
-                }),
-              }}
-            >
-              {selectedLocation && (
-                <Marker
-                  position={selectedLocation}
-                  icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: '#0d7cf2',
-                    fillOpacity: 1,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2,
+          {isScriptLoaded && !mapError ? (
+            <>
+              {/* Autocomplete wraps the input element */}
+              <Autocomplete
+                onLoad={onLoad}
+                onPlaceChanged={onPlaceChanged}
+                options={{
+                  types: ['establishment', 'geocode'],
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder={t('events.locationPlaceholder')}
+                  value={location}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    onLocationChange(value);
+                    // Clear marker if input is cleared
+                    if (!value) {
+                      setSelectedLocation(null);
+                    }
                   }}
+                  className="w-full bg-surface rounded-xl px-3 h-10 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-2 text-sm"
                 />
-              )}
-            </GoogleMap>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Show input even if script hasn't loaded yet */}
-          <input
-            type="text"
-            placeholder="Search for a location or enter address..."
-            value={location}
-            onChange={(e) => {
-              const value = e.target.value;
-              onLocationChange(value);
-              if (!value) {
-                setSelectedLocation(null);
-              }
-            }}
-            className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-3"
-          />
-          {errorMessage}
+              </Autocomplete>
+              
+              <div className="rounded-lg overflow-hidden border border-white/10 lg:rounded h-[140px] lg:h-[100px]">
+                <GoogleMap
+                  mapContainerStyle={{ width: '100%', height: '100%' }}
+                  center={mapCenter}
+                  zoom={selectedLocation ? 15 : 10}
+                  onClick={onMapClick}
+                  onLoad={onMapLoad}
+                  options={{
+                    disableDefaultUI: true,
+                    zoomControl: true,
+                    streetViewControl: false,
+                    mapTypeControl: false,
+                    fullscreenControl: false,
+                    // Use custom map style (mapId) if provided, otherwise use inline styles
+                    ...(googleMapsMapId ? { mapId: googleMapsMapId } : {
+                      styles: [
+                        {
+                          featureType: 'all',
+                          elementType: 'geometry',
+                          stylers: [{ color: '#1C232B' }],
+                        },
+                        {
+                          featureType: 'all',
+                          elementType: 'labels.text.fill',
+                          stylers: [{ color: '#93a2b7' }],
+                        },
+                        {
+                          featureType: 'water',
+                          elementType: 'geometry',
+                          stylers: [{ color: '#0d7cf2' }],
+                        },
+                        {
+                          featureType: 'road',
+                          elementType: 'geometry',
+                          stylers: [{ color: '#2d3748' }],
+                        },
+                      ],
+                    }),
+                  }}
+                >
+                  {selectedLocation && (
+                    <Marker
+                      position={selectedLocation}
+                      icon={{
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: '#0d7cf2',
+                        fillOpacity: 1,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2,
+                      }}
+                    />
+                  )}
+                </GoogleMap>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Show input even if script hasn't loaded yet */}
+              <input
+                type="text"
+                placeholder={t('events.locationPlaceholder')}
+                value={location}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  onLocationChange(value);
+                  if (!value) {
+                    setSelectedLocation(null);
+                  }
+                }}
+                className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-3"
+              />
+              {errorMessage}
           {fallbackMap}
         </>
       )}

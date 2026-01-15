@@ -1,15 +1,20 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Header, Avatar, Badge } from '../components/Layout';
-import { useEvents } from '../context/EventContext';
-import { useAuth } from '../context/AuthContext';
-import { useMessages } from '../context/MessageContext';
-import { sportsService } from '../services/supabaseService';
-import { userService } from '../services/userService';
-import { Event, User } from '../types';
+import React, { useState, useEffect, lazy, Suspense } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { Header, Avatar, Badge } from "../components/Layout";
+import { useEvents } from "../context/EventContext";
+import { useAuth } from "../context/AuthContext";
+import { useMessages } from "../context/MessageContext";
+import { useLanguage } from "../context/LanguageContext";
+import { sportsService } from "../services/supabaseService";
+import { userService } from "../services/userService";
+import { Event, User } from "../types";
 
 // Lazy load LocationPicker to avoid blocking form rendering
-const LocationPicker = lazy(() => import('../components/LocationPicker').then(module => ({ default: module.LocationPicker })));
+const LocationPicker = lazy(() =>
+  import("../components/LocationPicker").then((module) => ({
+    default: module.LocationPicker,
+  }))
+);
 
 interface Sport {
   id: string;
@@ -21,35 +26,49 @@ export const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
   const { createEvent } = useEvents();
   const { user } = useAuth();
-  const [title, setTitle] = useState('');
-  const [sport, setSport] = useState('Tennis');
+  const { t } = useLanguage();
+  const [title, setTitle] = useState("");
+  const [sport, setSport] = useState("Tennis");
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
-  const [date, setDate] = useState('');
-  
+  const [date, setDate] = useState("");
+
   // Format date to show day of week and dd/mm/yyyy format
   const getFormattedDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString + 'T00:00:00'); // Add time to avoid timezone issues
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayName = days[date.getDay()];
-    const [year, month, day] = dateString.split('-');
+    if (!dateString) return "";
+    const date = new Date(dateString + "T00:00:00"); // Add time to avoid timezone issues
+    const dayNames = [
+      t('date.days.sunday'),
+      t('date.days.monday'),
+      t('date.days.tuesday'),
+      t('date.days.wednesday'),
+      t('date.days.thursday'),
+      t('date.days.friday'),
+      t('date.days.saturday'),
+    ];
+    const dayName = dayNames[date.getDay()];
+    const [year, month, day] = dateString.split("-");
     return `${dayName}, ${day}/${month}/${year}`;
   };
-  const [time, setTime] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [time, setTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [showEndTime, setShowEndTime] = useState(false);
   const [duration, setDuration] = useState<number>(60); // Duration in minutes, default 60 (1 hour)
-  const [location, setLocation] = useState('');
-  const [locationCoords, setLocationCoords] = useState<{ lat?: number; lng?: number }>({});
+  const [location, setLocation] = useState("");
+  const [locationCoords, setLocationCoords] = useState<{
+    lat?: number;
+    lng?: number;
+  }>({});
   const [maxPlayers, setMaxPlayers] = useState(10);
-  const [maxPlayersDisplay, setMaxPlayersDisplay] = useState<string>('10');
+  const [maxPlayersDisplay, setMaxPlayersDisplay] = useState<string>("10");
   const [competitive, setCompetitive] = useState(false);
-  const [skillLevel, setSkillLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced' | 'All'>('All');
-  const [description, setDescription] = useState('');
+  const [skillLevel, setSkillLevel] = useState<
+    "Beginner" | "Intermediate" | "Advanced" | "All"
+  >("All");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState<number | undefined>(undefined);
-  const [priceDisplay, setPriceDisplay] = useState<string>('');
-  const [error, setError] = useState('');
+  const [priceDisplay, setPriceDisplay] = useState<string>("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -58,16 +77,16 @@ export const CreateEvent: React.FC = () => {
         const sportsData = await sportsService.getAllSports();
         setSports(sportsData);
         // Set default sport to first sport (Tennis)
-        if (sportsData.length > 0 && sport === 'Tennis') {
+        if (sportsData.length > 0 && sport === "Tennis") {
           setSport(sportsData[0].name);
         }
       } catch (err) {
-        console.error('Error loading sports:', err);
+        console.error("Error loading sports:", err);
         // Fallback to default sports
         setSports([
-          { id: '1', name: 'Tennis', icon: 'sports_tennis' },
-          { id: '2', name: 'Pickleball', icon: 'sports_tennis' },
-          { id: '3', name: 'Badminton', icon: 'sports_tennis' },
+          { id: "1", name: "Tennis", icon: "sports_tennis" },
+          { id: "2", name: "Pickleball", icon: "sports_tennis" },
+          { id: "3", name: "Badminton", icon: "sports_tennis" },
         ]);
       } finally {
         setSportsLoading(false);
@@ -77,189 +96,232 @@ export const CreateEvent: React.FC = () => {
   }, []);
 
   const getSportIcon = (sportName: string) => {
-    const sport = sports.find(s => s.name === sportName);
+    const sport = sports.find((s) => s.name === sportName);
     if (sport) return sport.icon;
     // Fallback icons
     const iconMap: Record<string, string> = {
-      'Tennis': 'sports_tennis',
-      'Pickleball': 'sports_tennis',
-      'Badminton': 'sports_tennis',
-      'Basketball': 'sports_basketball',
-      'Soccer': 'sports_soccer',
-      'Volleyball': 'sports_volleyball',
+      Tennis: "sports_tennis",
+      Pickleball: "sports_tennis",
+      Badminton: "sports_tennis",
+      Basketball: "sports_basketball",
+      Soccer: "sports_soccer",
+      Volleyball: "sports_volleyball",
     };
-    return iconMap[sportName] || 'sports';
+    return iconMap[sportName] || "sports";
   };
 
   const handleCreate = async () => {
-    setError('');
+    setError("");
 
     if (!title.trim()) {
-      setError('Please enter an event name');
+      setError(t('events.validation.eventName'));
       return;
     }
     if (!date) {
-      setError('Please select a date');
+      setError(t('events.validation.date'));
       return;
     }
     if (!time) {
-      setError('Please select a time');
+      setError(t('events.validation.time'));
       return;
     }
     if (!location.trim()) {
-      setError('Please enter a location');
+      setError(t('events.validation.location'));
       return;
     }
     if (maxPlayers < 2) {
-      setError('Must have at least 2 players');
+      setError(t('events.validation.minPlayers'));
       return;
     }
 
     setIsLoading(true);
     try {
+      // Calculate endTime from duration if not explicitly set
+      let calculatedEndTime = endTime;
+      if (!calculatedEndTime && time && duration) {
+        const [hours, minutes] = time.split(":").map(Number);
+        const endDate = new Date();
+        endDate.setHours(hours, minutes);
+        endDate.setMinutes(endDate.getMinutes() + duration);
+        calculatedEndTime = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}`;
+      }
+      
       const newEvent = await createEvent({
         title: title.trim(),
         sport,
         description: description.trim() || undefined,
         date,
         time,
-        endTime: showEndTime && endTime ? endTime : undefined,
+        endTime: calculatedEndTime || undefined,
         location: location.trim(),
         maxPlayers,
         skillLevel,
         competitive,
         price: price !== undefined && price > 0 ? price : undefined,
       });
-      navigate(`/event/created`, { state: { eventId: newEvent.id, event: newEvent } });
+      navigate(`/event/created`, {
+        state: { eventId: newEvent.id, event: newEvent },
+      });
     } catch (err: any) {
-      setError(err.message || 'Failed to create event');
+      setError(err.message || t('events.failedToCreate'));
     } finally {
       setIsLoading(false);
     }
   };
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="flex items-center justify-between px-4 py-3 bg-background/90 border-b border-white/10">
-        <button onClick={() => navigate(-1)} className="text-primary font-medium">Cancel</button>
-        <h1 className="font-bold">Create Event</h1>
+      <div className="flex items-center justify-between px-4 py-3 bg-background/90 border-b border-white/10 lg:px-6 lg:py-2">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-primary font-medium text-sm lg:text-base"
+        >
+          {t('common.cancel')}
+        </button>
+        <h1 className="font-bold text-base lg:text-lg">{t('events.create')}</h1>
         <div className="w-10"></div>
       </div>
-      
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 max-w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto w-full">
+
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 w-full lg:p-6 lg:space-y-3">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
         {error && (
-          <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm">
+          <div className="p-2 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm lg:p-1.5 lg:text-xs">
             {error}
           </div>
         )}
 
         <div>
-          <h2 className="text-lg font-bold mb-3">Sport Type</h2>
+          <h2 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.sportType')}</h2>
           {sportsLoading ? (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-white/10 text-slate-400 animate-pulse">
-                <span className="material-symbols-outlined text-[20px]">sports_tennis</span>
-                <span className="font-medium">Loading...</span>
+                <span className="material-symbols-outlined text-[20px]">
+                  sports_tennis
+                </span>
+                <span className="font-medium">{t('common.loading')}</span>
               </div>
             </div>
           ) : (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar">
-              {sports.map(s => (
-                <button 
+            <div className="flex gap-3 overflow-x-auto no-scrollbar lg:gap-2">
+              {sports.map((s) => (
+                <button
                   key={s.id}
                   onClick={() => setSport(s.name)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg shrink-0 transition-all ${
-                    sport === s.name 
-                      ? 'bg-primary text-white shadow-primary/20' 
-                      : 'bg-surface border border-white/10 text-slate-400'
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg shrink-0 transition-all lg:px-3 lg:py-1.5 lg:gap-1.5 ${
+                    sport === s.name
+                      ? "bg-primary text-white shadow-primary/20"
+                      : "bg-surface border border-white/10 text-slate-400"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[20px]">
+                  <span className="material-symbols-outlined text-[20px] lg:text-[18px]">
                     {s.icon || getSportIcon(s.name)}
                   </span>
-                  <span className="font-medium">{s.name}</span>
-              </button>
-            ))}
-          </div>
+                  <span className="font-medium text-sm lg:text-xs">{s.name}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 lg:space-y-2">
           <div>
-            <label className="text-sm font-medium text-slate-400 ml-1 mb-1 block">Event Name</label>
-            <input 
-              type="text" 
-              placeholder="e.g. Downtown Hoop Session" 
+            <label className="text-xs font-medium text-slate-400 ml-1 mb-1 block lg:text-[11px] lg:mb-0.5">
+              {t('events.eventName')}
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Downtown Hoop Session"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white" 
+              className="w-full bg-surface rounded-xl px-3 h-10 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm lg:h-9 lg:px-2.5 lg:text-xs"
             />
           </div>
-          
+
           <div>
-            <h3 className="text-lg font-bold mb-3">When & Where</h3>
-            <div className="bg-surface rounded-xl overflow-hidden border border-white/10 divide-y divide-white/5">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><span className="material-symbols-outlined text-[20px]">calendar_today</span></div>
+            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.whenWhere')}</h3>
+            <div className="bg-surface rounded-xl overflow-hidden border border-white/10 divide-y divide-white/5 lg:rounded-lg">
+              <div className="flex items-center justify-between p-3 lg:p-2">
+                <div className="flex items-center gap-2 lg:gap-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary lg:w-6 lg:h-6 lg:rounded">
+                    <span className="material-symbols-outlined text-[18px] lg:text-[16px]">
+                      calendar_today
+                    </span>
+                  </div>
                   <div className="flex flex-col">
-                  <span className="font-medium">Date</span>
+                    <span className="font-medium text-sm lg:text-xs">{t('events.date')}</span>
                     {date && (
-                      <span className="text-xs text-slate-500">{getFormattedDate(date)}</span>
+                      <span className="text-xs text-slate-500 lg:text-[10px]">
+                        {getFormattedDate(date)}
+                      </span>
                     )}
+                  </div>
                 </div>
-                </div>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="bg-transparent text-primary font-medium outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  min={new Date().toISOString().split("T")[0]}
+                  className="bg-transparent text-primary font-medium outline-none text-sm lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                   style={{
-                    colorScheme: 'dark'
+                    colorScheme: "dark",
                   }}
                 />
               </div>
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500"><span className="material-symbols-outlined text-[20px]">schedule</span></div>
-                  <span className="font-medium">Time</span>
+              <div className="flex items-center justify-between p-3 lg:p-2">
+                <div className="flex items-center gap-2 lg:gap-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 lg:w-6 lg:h-6 lg:rounded">
+                    <span className="material-symbols-outlined text-[18px] lg:text-[16px]">
+                      schedule
+                    </span>
+                  </div>
+                  <span className="font-medium text-sm lg:text-xs">{t('events.time')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="time" 
+                  <input
+                    type="time"
                     value={time}
                     onChange={(e) => {
                       setTime(e.target.value);
                       // Update end time if duration is set
                       if (e.target.value && showEndTime && duration) {
-                        const [hours, minutes] = e.target.value.split(':').map(Number);
+                        const [hours, minutes] = e.target.value
+                          .split(":")
+                          .map(Number);
                         const endDate = new Date();
                         endDate.setHours(hours, minutes);
                         endDate.setMinutes(endDate.getMinutes() + duration);
-                        setEndTime(`${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`);
+                        setEndTime(
+                          `${String(endDate.getHours()).padStart(
+                            2,
+                            "0"
+                          )}:${String(endDate.getMinutes()).padStart(2, "0")}`
+                        );
                       }
                     }}
-                    className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                    className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                     style={{
-                      colorScheme: 'dark'
+                      colorScheme: "dark",
                     }}
                   />
                   {showEndTime && (
                     <>
-                  <span className="text-slate-500 text-sm">to</span>
-                      <input 
+                      <span className="text-slate-500 text-sm lg:text-xs">to</span>
+                      <input
                         type="time"
-                        className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                         style={{
-                          colorScheme: 'dark'
-                        }} 
+                          colorScheme: "dark",
+                        }}
                         value={endTime}
                         onChange={(e) => {
                           setEndTime(e.target.value);
                           // Calculate duration from start and end time
                           if (time && e.target.value) {
-                            const [startHours, startMinutes] = time.split(':').map(Number);
-                            const [endHours, endMinutes] = e.target.value.split(':').map(Number);
+                            const [startHours, startMinutes] = time
+                              .split(":")
+                              .map(Number);
+                            const [endHours, endMinutes] = e.target.value
+                              .split(":")
+                              .map(Number);
                             const start = new Date();
                             start.setHours(startHours, startMinutes);
                             const end = new Date();
@@ -268,7 +330,9 @@ export const CreateEvent: React.FC = () => {
                             if (end < start) {
                               end.setDate(end.getDate() + 1);
                             }
-                            const diffMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+                            const diffMinutes = Math.round(
+                              (end.getTime() - start.getTime()) / (1000 * 60)
+                            );
                             if (diffMinutes > 0) {
                               setDuration(diffMinutes);
                             }
@@ -284,30 +348,39 @@ export const CreateEvent: React.FC = () => {
                       if (!showEndTime) {
                         // Set default end time (1 hour after start time)
                         if (time) {
-                          const [hours, minutes] = time.split(':').map(Number);
+                          const [hours, minutes] = time.split(":").map(Number);
                           const endDate = new Date();
                           endDate.setHours(hours, minutes);
                           endDate.setMinutes(endDate.getMinutes() + duration);
-                          setEndTime(`${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`);
+                          setEndTime(
+                            `${String(endDate.getHours()).padStart(
+                              2,
+                              "0"
+                            )}:${String(endDate.getMinutes()).padStart(2, "0")}`
+                          );
                         } else {
                           // If no start time, set default duration
                           setDuration(60);
                         }
                       } else {
-                        setEndTime('');
+                        setEndTime("");
                       }
                     }}
-                    className="text-primary text-xs font-medium hover:text-primary-hover ml-2"
+                    className="text-primary text-xs font-medium hover:text-primary-hover ml-2 lg:text-[10px] lg:ml-1"
                   >
-                    {showEndTime ? 'Remove' : '+ End time'}
+                    {showEndTime ? t('events.remove') : t('events.addEndTime')}
                   </button>
                 </div>
               </div>
               {showEndTime && (
-                <div className="flex items-center justify-between p-4 border-t border-white/5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500"><span className="material-symbols-outlined text-[20px]">timer</span></div>
-                    <span className="font-medium">Duration</span>
+                <div className="flex items-center justify-between p-3 border-t border-white/5 lg:p-2">
+                  <div className="flex items-center gap-2 lg:gap-1.5">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500 lg:w-6 lg:h-6 lg:rounded">
+                      <span className="material-symbols-outlined text-[18px] lg:text-[16px]">
+                        timer
+                      </span>
+                    </div>
+                    <span className="font-medium text-sm lg:text-xs">Duration</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
@@ -317,55 +390,94 @@ export const CreateEvent: React.FC = () => {
                         setDuration(newDuration);
                         // Update end time based on duration
                         if (time) {
-                          const [hours, minutes] = time.split(':').map(Number);
+                          const [hours, minutes] = time.split(":").map(Number);
                           const endDate = new Date();
                           endDate.setHours(hours, minutes);
-                          endDate.setMinutes(endDate.getMinutes() + newDuration);
-                          setEndTime(`${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`);
+                          endDate.setMinutes(
+                            endDate.getMinutes() + newDuration
+                          );
+                          setEndTime(
+                            `${String(endDate.getHours()).padStart(
+                              2,
+                              "0"
+                            )}:${String(endDate.getMinutes()).padStart(2, "0")}`
+                          );
                         }
                       }}
-                      className="bg-white/5 px-3 py-1 rounded text-sm text-white border-none outline-none [&>option]:text-black [&>option]:bg-white"
+                      className="bg-white/5 px-3 py-1 rounded text-sm text-white border-none outline-none lg:px-2 lg:py-0.5 lg:text-xs [&>option]:text-black [&>option]:bg-white"
                     >
-                      <option value={30} className="text-black">30 min</option>
-                      <option value={60} className="text-black">1 hour</option>
-                      <option value={90} className="text-black">1.5 hours</option>
-                      <option value={120} className="text-black">2 hours</option>
-                      <option value={180} className="text-black">3 hours</option>
-                      <option value={240} className="text-black">4 hours</option>
-                      <option value={300} className="text-black">5 hours</option>
-                      <option value={360} className="text-black">6 hours</option>
-                      <option value={420} className="text-black">7 hours</option>
-                      <option value={480} className="text-black">8 hours</option>
-                      <option value={540} className="text-black">9 hours</option>
-                      <option value={600} className="text-black">10 hours</option>
+                      <option value={30} className="text-black">
+                        30 min
+                      </option>
+                      <option value={60} className="text-black">
+                        1 hour
+                      </option>
+                      <option value={90} className="text-black">
+                        1.5 hours
+                      </option>
+                      <option value={120} className="text-black">
+                        2 hours
+                      </option>
+                      <option value={180} className="text-black">
+                        3 hours
+                      </option>
+                      <option value={240} className="text-black">
+                        4 hours
+                      </option>
+                      <option value={300} className="text-black">
+                        5 hours
+                      </option>
+                      <option value={360} className="text-black">
+                        6 hours
+                      </option>
+                      <option value={420} className="text-black">
+                        7 hours
+                      </option>
+                      <option value={480} className="text-black">
+                        8 hours
+                      </option>
+                      <option value={540} className="text-black">
+                        9 hours
+                      </option>
+                      <option value={600} className="text-black">
+                        10 hours
+                      </option>
                     </select>
+                  </div>
                 </div>
-              </div>
               )}
-              <div className="p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500"><span className="material-symbols-outlined text-[20px]">location_on</span></div>
-                    <span className="font-medium">Location</span>
+              <div className="p-3 lg:p-2">
+                <div className="flex justify-between items-center mb-2 lg:mb-1.5">
+                  <div className="flex items-center gap-2 lg:gap-1.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 lg:w-6 lg:h-6 lg:rounded">
+                      <span className="material-symbols-outlined text-[18px] lg:text-[16px]">
+                        location_on
+                      </span>
+                    </div>
+                    <span className="font-medium text-sm lg:text-xs">{t('events.location')}</span>
                   </div>
                 </div>
-                <Suspense fallback={
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Search for a location or enter address..."
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-3"
-                    />
-                    <div className="rounded-lg overflow-hidden border border-white/10 h-48 bg-slate-800 flex items-center justify-center">
-                      <div className="text-center text-slate-400">
-                        <span className="material-symbols-outlined text-4xl mb-2 block animate-pulse">map</span>
-                        <p className="text-sm">Loading map...</p>
-                  </div>
-                </div>
-                  </div>
-                }>
+                <Suspense
+                  fallback={
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder={t('events.locationPlaceholder')}
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full bg-surface rounded-xl px-3 h-10 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-2 text-sm"
+                      />
+                      <div className="rounded-lg overflow-hidden border border-white/10 h-28 bg-slate-800 flex items-center justify-center lg:h-24 lg:rounded">
+                        <div className="text-center text-slate-400">
+                          <span className="material-symbols-outlined text-2xl mb-1 block animate-pulse lg:text-xl">
+                            map
+                          </span>
+                          <p className="text-xs lg:text-[10px]">{t('events.loadingMap')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                >
                   <LocationPicker
                     location={location}
                     onLocationChange={(address, lat, lng) => {
@@ -381,30 +493,32 @@ export const CreateEvent: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="text-lg font-bold mb-3">Details</h3>
-            <div className="bg-surface rounded-xl p-4 border border-white/10">
+            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.details')}</h3>
+            <div className="bg-surface rounded-xl p-3 border border-white/10 lg:rounded-lg lg:p-2">
               <div>
-                <label className="text-sm font-medium text-slate-400 mb-2 block">Total Spots</label>
-                <input 
+                <label className="text-xs font-medium text-slate-400 mb-1 block lg:text-[11px] lg:mb-0.5">
+                  {t('events.totalSpots')}
+                </label>
+                <input
                   type="text"
                   inputMode="numeric"
                   value={maxPlayersDisplay}
                   onChange={(e) => {
                     const inputValue = e.target.value;
-                    
+
                     // Allow empty input for deletion
-                    if (inputValue === '') {
-                      setMaxPlayersDisplay('');
+                    if (inputValue === "") {
+                      setMaxPlayersDisplay("");
                       return;
                     }
-                    
+
                     // Only allow digits
-                    const digitsOnly = inputValue.replace(/[^\d]/g, '');
-                    if (digitsOnly === '') {
-                      setMaxPlayersDisplay('');
+                    const digitsOnly = inputValue.replace(/[^\d]/g, "");
+                    if (digitsOnly === "") {
+                      setMaxPlayersDisplay("");
                       return;
                     }
-                    
+
                     const value = parseInt(digitsOnly);
                     if (!isNaN(value)) {
                       setMaxPlayersDisplay(digitsOnly);
@@ -412,50 +526,56 @@ export const CreateEvent: React.FC = () => {
                         setMaxPlayers(value);
                       } else if (value > 50) {
                         setMaxPlayers(50);
-                        setMaxPlayersDisplay('50');
+                        setMaxPlayersDisplay("50");
                       }
                     }
                   }}
                   onBlur={(e) => {
                     // Ensure value is within range on blur
                     const value = parseInt(e.target.value);
-                    if (isNaN(value) || e.target.value === '' || value < 2) {
+                    if (isNaN(value) || e.target.value === "" || value < 2) {
                       setMaxPlayers(2);
-                      setMaxPlayersDisplay('2');
+                      setMaxPlayersDisplay("2");
                     } else if (value > 50) {
                       setMaxPlayers(50);
-                      setMaxPlayersDisplay('50');
+                      setMaxPlayersDisplay("50");
                     } else {
                       setMaxPlayers(value);
                       setMaxPlayersDisplay(value.toString());
                     }
                   }}
-                  className="w-full bg-white/5 px-4 py-2 rounded-lg text-white border border-white/10 focus:border-primary outline-none"
+                  className="w-full bg-white/5 px-3 py-1.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none text-sm lg:px-2 lg:py-1 lg:text-xs"
                 />
-                </div>
-              <div className="space-y-4 pt-4 border-t border-white/5">
+              </div>
+              <div className="space-y-3 pt-3 border-t border-white/5 lg:space-y-2 lg:pt-2">
                 <div>
-                  <label className="text-sm font-medium text-slate-400 mb-2 block">Skill Level</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['Beginner', 'Intermediate', 'Advanced', 'All'] as const).map((level) => (
+                  <label className="text-xs font-medium text-slate-400 mb-1.5 block lg:text-[11px] lg:mb-1">
+                    {t('events.skillLevel')}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 lg:gap-1.5">
+                    {(
+                      ["Beginner", "Intermediate", "Advanced", "All"] as const
+                    ).map((level) => (
                       <button
                         key={level}
                         type="button"
                         onClick={() => setSkillLevel(level)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors lg:px-2.5 lg:py-1.5 lg:text-xs ${
                           skillLevel === level
-                            ? 'bg-primary text-white'
-                            : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                            ? "bg-primary text-white"
+                            : "bg-white/5 text-slate-400 hover:bg-white/10"
                         }`}
                       >
-                        {level}
+                        {t(`events.skillLevel.${level.toLowerCase()}`)}
                       </button>
                     ))}
-              </div>
-              </div>
-                
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-sm font-medium text-slate-400 mb-2 block">Price (Optional)</label>
+                  <label className="text-xs font-medium text-slate-400 mb-1.5 block lg:text-[11px] lg:mb-1">
+                    {t('events.price')} ({t('common.optional')})
+                  </label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -465,19 +585,19 @@ export const CreateEvent: React.FC = () => {
                       autoComplete="off"
                       onChange={(e) => {
                         const inputValue = e.target.value;
-                        
+
                         // Allow empty input
-                        if (inputValue === '') {
-                          setPriceDisplay('');
+                        if (inputValue === "") {
+                          setPriceDisplay("");
                           setPrice(undefined);
                           return;
                         }
-                        
+
                         // Remove all non-digit characters (including commas)
-                        const rawValue = inputValue.replace(/[^\d]/g, '');
-                        
-                        if (rawValue === '') {
-                          setPriceDisplay('');
+                        const rawValue = inputValue.replace(/[^\d]/g, "");
+
+                        if (rawValue === "") {
+                          setPriceDisplay("");
                           setPrice(undefined);
                         } else {
                           // Parse as number
@@ -492,47 +612,53 @@ export const CreateEvent: React.FC = () => {
                       onBlur={() => {
                         // Format with commas when user leaves the field
                         if (price !== undefined && price > 0) {
-                          setPriceDisplay(price.toLocaleString('en-US'));
+                          setPriceDisplay(price.toLocaleString("en-US"));
                         } else {
-                          setPriceDisplay('');
+                          setPriceDisplay("");
                           setPrice(undefined);
                         }
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                      className="flex-1 bg-white/5 px-4 py-2 rounded-lg text-white border border-white/10 focus:border-primary outline-none cursor-text relative z-10"
+                      className="flex-1 bg-white/5 px-3 py-1.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none cursor-text relative z-10 text-sm lg:px-2 lg:py-1 lg:text-xs"
                     />
-                    <span className="text-slate-400 text-sm">VND</span>
+                    <span className="text-slate-400 text-xs lg:text-[10px]">VND</span>
                     {price !== undefined && price > 0 && (
                       <button
                         type="button"
                         onClick={() => {
                           setPrice(undefined);
-                          setPriceDisplay('');
+                          setPriceDisplay("");
                         }}
                         className="text-slate-500 hover:text-white"
                       >
-                        <span className="material-symbols-outlined text-[20px]">close</span>
+                        <span className="material-symbols-outlined text-[20px] lg:text-[16px]">
+                          close
+                        </span>
                       </button>
                     )}
                   </div>
-              </div>
-
-                <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Competitive Mode</p>
-                  <p className="text-xs text-slate-500">Only matching skill levels can join</p>
                 </div>
+
+                <div className="flex items-center justify-between lg:gap-2">
+                  <div>
+                    <p className="font-medium text-sm lg:text-xs">{t('events.competitive')}</p>
+                    <p className="text-xs text-slate-500 lg:text-[10px]">
+                      {t('events.competitiveDescription')}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setCompetitive(!competitive)}
-                    className={`w-12 h-7 rounded-full relative transition-colors ${
-                      competitive ? 'bg-primary' : 'bg-white/10'
+                    className={`w-12 h-7 rounded-full relative transition-colors lg:w-10 lg:h-6 ${
+                      competitive ? "bg-primary" : "bg-white/10"
                     }`}
                   >
-                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                      competitive ? 'left-6' : 'left-1'
-                    }`}></div>
+                    <div
+                      className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform lg:top-0.5 lg:w-4 lg:h-4 ${
+                        competitive ? "left-6 lg:left-5" : "left-1"
+                      }`}
+                    ></div>
                   </button>
                 </div>
               </div>
@@ -540,29 +666,37 @@ export const CreateEvent: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="text-lg font-bold mb-3">Description <span className="text-slate-500 text-sm font-normal">(Optional)</span></h3>
-            <div className="bg-surface rounded-xl p-4 border border-white/10">
+            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">
+              {t('events.description')}{" "}
+              <span className="text-slate-500 text-xs font-normal lg:text-[10px]">
+                ({t('common.optional')})
+              </span>
+            </h3>
+            <div className="bg-surface rounded-xl p-3 border border-white/10 lg:rounded-lg lg:p-2">
               <textarea
-                placeholder="Add details about your event... (e.g. rules, what to bring, special instructions)"
+                placeholder={t('events.descriptionPlaceholder')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={5}
-                className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none resize-none"
+                rows={3}
+                className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none resize-none text-sm lg:text-xs lg:rows-2"
               />
             </div>
           </div>
         </div>
+        </div>
       </main>
-      
-      <div className="p-4 bg-background border-t border-white/10 max-w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto w-full">
-        <button 
+
+      <div className="p-3 bg-background border-t border-white/10 w-full lg:p-4">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+        <button
           onClick={handleCreate}
           disabled={isLoading}
-          className="w-full h-14 bg-primary disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+          className="w-full h-12 bg-primary disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:h-10 lg:text-sm"
         >
-          <span className="material-symbols-outlined">add_circle</span> 
-          {isLoading ? 'Creating...' : 'Create Event'}
+          <span className="material-symbols-outlined lg:text-[18px]">add_circle</span>
+          {isLoading ? t('events.creating') : t('events.create')}
         </button>
+        </div>
       </div>
     </div>
   );
@@ -571,27 +705,30 @@ export const CreateEvent: React.FC = () => {
 export const EventCreated: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
   const { getEvent, events } = useEvents();
-  const [event, setEvent] = useState<Event | null>((location.state as any)?.event || null);
+  const [event, setEvent] = useState<Event | null>(
+    (location.state as any)?.event || null
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadEvent = () => {
       const eventId = (location.state as any)?.eventId;
       const eventFromState = (location.state as any)?.event;
-      
+
       // If event was passed directly in state, use it
       if (eventFromState) {
         setEvent(eventFromState);
         setIsLoading(false);
         return;
       }
-      
+
       // Otherwise, try to get it from the events list
       if (eventId) {
         // Try to get event immediately
         let eventData = getEvent(eventId);
-        
+
         if (eventData) {
           setEvent(eventData);
           setIsLoading(false);
@@ -604,7 +741,7 @@ export const EventCreated: React.FC = () => {
             }
             setIsLoading(false);
           }, 500);
-          
+
           return () => clearTimeout(timeout);
         }
       } else {
@@ -619,72 +756,109 @@ export const EventCreated: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col h-screen bg-background justify-center items-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-white">{t('common.loading')}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background justify-between pb-10 pt-10 px-6">
+    <div className="flex flex-col h-screen bg-background justify-between pb-10 pt-10 px-6 lg:pb-6 lg:pt-6 lg:px-8">
+      <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
       <div className="flex flex-col items-center text-center">
-        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative">
+        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative lg:w-16 lg:h-16 lg:mb-4">
           <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
-          <span className="material-symbols-outlined text-4xl">check_circle</span>
+          <span className="material-symbols-outlined text-4xl lg:text-3xl">
+            check_circle
+          </span>
         </div>
-        <h1 className="text-4xl font-extrabold mb-2">Game On!</h1>
-        <p className="text-slate-400 mb-4">Your squad is ready to be assembled. Event created successfully!</p>
+        <h1 className="text-4xl font-extrabold mb-2 lg:text-2xl lg:mb-1.5">Game On!</h1>
+        <p className="text-slate-400 mb-4 lg:text-sm lg:mb-3">
+          Your squad is ready to be assembled. Event created successfully!
+        </p>
         {event?.code && (
-          <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-6 py-4 mb-4">
-            <p className="text-xs text-slate-400 mb-2">Event Code</p>
-            <div className="flex items-center gap-3">
-              <code className="text-2xl font-bold text-primary tracking-wider">{event.code}</code>
+          <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-6 py-4 mb-4 lg:px-4 lg:py-3 lg:mb-3 lg:rounded-lg">
+            <p className="text-xs text-slate-400 mb-2 lg:text-[11px] lg:mb-1.5">{t('events.eventCode')}</p>
+            <div className="flex items-center gap-3 lg:gap-2">
+              <code className="text-2xl font-bold text-primary tracking-wider lg:text-xl">
+                {event.code}
+              </code>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(event.code);
                   // You could add a toast notification here
                 }}
-                className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
+                className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors lg:p-1.5"
                 title="Copy code"
               >
-                <span className="material-symbols-outlined text-sm">content_copy</span>
+                <span className="material-symbols-outlined text-sm lg:text-xs">
+                  content_copy
+                </span>
               </button>
             </div>
-            <p className="text-xs text-slate-500 mt-2">Share this code with others to let them find your event</p>
+            <p className="text-xs text-slate-500 mt-2 lg:text-[11px] lg:mt-1.5">
+              {t('events.shareCode')}
+            </p>
           </div>
         )}
       </div>
 
-      <div className="w-full bg-surface border border-white/10 rounded-xl overflow-hidden shadow-2xl">
-        <div className="h-40 relative">
-          <img src="https://images.unsplash.com/photo-1575361204480-aadea25e6e68" className="w-full h-full object-cover" alt="Event" />
+      <div className="w-full bg-surface border border-white/10 rounded-xl overflow-hidden shadow-2xl lg:rounded-lg">
+        <div className="h-40 relative lg:h-32">
+          <img
+            src="https://images.unsplash.com/photo-1575361204480-aadea25e6e68"
+            className="w-full h-full object-cover"
+            alt="Event"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent"></div>
           <div className="absolute top-3 right-3 bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10">
-            <span className="material-symbols-outlined text-green-400 text-xs">group</span>
+            <span className="material-symbols-outlined text-green-400 text-xs">
+              group
+            </span>
             <span className="text-[10px] font-bold uppercase">
-              {spotsLeft > 0 ? `${spotsLeft} ${spotsLeft === 1 ? 'Spot' : 'Spots'} Open` : 'Full'}
+              {spotsLeft > 0
+                ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
+                : t('events.full')}
             </span>
           </div>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 lg:p-4 lg:space-y-3">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xl font-bold leading-tight">Sunday Morning Football</h2>
-              <p className="text-primary text-sm">Touchdown Titans</p>
+              <h2 className="text-xl font-bold leading-tight lg:text-base">
+                Sunday Morning Football
+              </h2>
+              <p className="text-primary text-sm lg:text-xs">Touchdown Titans</p>
             </div>
             <div className="bg-gradient-to-r from-yellow-400 to-green-400 p-[1px] rounded-lg">
               <div className="bg-black/80 px-2 py-1 rounded-[7px]">
-                <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-green-400">GOLD LEAGUE</span>
+                <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-green-400">
+                  GOLD LEAGUE
+                </span>
               </div>
             </div>
           </div>
           <div className="border-t border-white/10 pt-4 space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><span className="material-symbols-outlined text-sm">calendar_month</span></div>
-              <div><p className="text-xs text-slate-400">Date & Time</p><p className="font-medium text-sm">Oct 24, 10:00 AM</p></div>
+              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
+                <span className="material-symbols-outlined text-sm">
+                  calendar_month
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">{t('events.dateTime')}</p>
+                <p className="font-medium text-sm">Oct 24, 10:00 AM</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><span className="material-symbols-outlined text-sm">location_on</span></div>
-              <div><p className="text-xs text-slate-400">Location</p><p className="font-medium text-sm">Central Park Field 3</p></div>
+              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
+                <span className="material-symbols-outlined text-sm">
+                  location_on
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Location</p>
+                <p className="font-medium text-sm">Central Park Field 3</p>
+              </div>
             </div>
           </div>
         </div>
@@ -693,22 +867,46 @@ export const EventCreated: React.FC = () => {
       <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex -space-x-2">
-            <Avatar src="https://i.pravatar.cc/150?u=p1" size="w-8 h-8" className="ring-2 ring-background" />
-            <Avatar src="https://i.pravatar.cc/150?u=p2" size="w-8 h-8" className="ring-2 ring-background" />
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs ring-2 ring-background">+</div>
+            <Avatar
+              src="https://i.pravatar.cc/150?u=p1"
+              size="w-8 h-8"
+              className="ring-2 ring-background"
+            />
+            <Avatar
+              src="https://i.pravatar.cc/150?u=p2"
+              size="w-8 h-8"
+              className="ring-2 ring-background"
+            />
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs ring-2 ring-background">
+              +
+            </div>
           </div>
           <span className="text-sm font-medium">Invite your crew</span>
         </div>
-        <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span className="material-symbols-outlined text-sm">arrow_forward</span></button>
+        <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+          <span className="material-symbols-outlined text-sm">
+            arrow_forward
+          </span>
+        </button>
       </div>
 
-      <div className="space-y-3 w-full">
+      <div className="space-y-3 w-full lg:space-y-2">
         {event && (
-          <button onClick={() => navigate(`/event/${event.id}`)} className="w-full py-4 bg-primary rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined">visibility</span> View Event Details
+          <button
+            onClick={() => navigate(`/event/${event.id}`)}
+            className="w-full py-4 bg-primary rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:py-3 lg:text-sm lg:rounded-lg"
+          >
+            <span className="material-symbols-outlined lg:text-lg">visibility</span> View
+            {t('events.eventDetails')}
           </button>
         )}
-        <button onClick={() => navigate('/home')} className="w-full py-4 bg-transparent border border-white/20 rounded-xl font-medium hover:bg-white/5">Return to Dashboard</button>
+        <button
+          onClick={() => navigate("/home")}
+          className="w-full py-4 bg-transparent border border-white/20 rounded-xl font-medium hover:bg-white/5 lg:py-3 lg:text-sm lg:rounded-lg"
+        >
+          Return to Dashboard
+        </button>
+      </div>
       </div>
     </div>
   );
@@ -717,52 +915,133 @@ export const EventCreated: React.FC = () => {
 export const OrganizerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { getEvent, events, approveRequest, denyRequest, getEventRequests } = useEvents();
+  const { getEvent, events, approveRequest, denyRequest, getEventRequests, inviteFriendToEvent, getEventInvitations } =
+    useEvents();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [event, setEvent] = useState<Event | null>(null);
   const [players, setPlayers] = useState<User[]>([]);
   const [pendingRequestUsers, setPendingRequestUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [friends, setFriends] = useState<User[]>([]);
+  const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
+  const [invitedFriendIds, setInvitedFriendIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<"pending" | "confirmed">("confirmed");
 
-  useEffect(() => {
-    const loadEvent = async () => {
-      if (!id) {
-        setIsLoading(false);
-        return;
-      }
+  const loadEventData = async () => {
+    if (!id) {
+      setIsLoading(false);
+      return;
+    }
 
-      const eventData = getEvent(id);
-      if (eventData) {
-        // Only update if the new event has the same or more players (to preserve optimistic updates)
-        setEvent(prevEvent => {
+    try {
+      // Always fetch fresh data from database first
+      const { eventService } = await import("../services/supabaseService");
+      const dbEvent = await eventService.getEvent(id);
+      
+      if (dbEvent) {
+        // Update event state, but be smart about optimistic updates
+        setEvent((prevEvent) => {
           if (prevEvent) {
-            // If current event has more players, keep it (optimistic update)
-            if (prevEvent.players.length > eventData.players.length) {
-              // Keep optimistic update and load its players
-              loadPlayers(prevEvent.players);
-              return prevEvent;
+            // If database has fewer players, always use database (player left)
+            if (dbEvent.players.length < prevEvent.players.length) {
+              console.log('Player left detected, updating from database');
+              loadPlayers(dbEvent.players);
+              return dbEvent;
             }
-            // If current event has the same players, use the one from context (more reliable)
-            if (prevEvent.players.length === eventData.players.length) {
-              loadPlayers(eventData.players);
-              return eventData;
+            // If database has more players, use database (player joined)
+            if (dbEvent.players.length > prevEvent.players.length) {
+              console.log('Player joined detected, updating from database');
+              loadPlayers(dbEvent.players);
+              return dbEvent;
             }
-            // If prevEvent has fewer players, use the new one
-            loadPlayers(eventData.players);
-            return eventData;
+            // If same number of players, check if the arrays are different
+            // (in case of reordering or different players)
+            const prevPlayerSet = new Set(prevEvent.players);
+            const dbPlayerSet = new Set(dbEvent.players);
+            const areEqual = prevEvent.players.length === dbEvent.players.length &&
+              prevEvent.players.every(id => dbPlayerSet.has(id)) &&
+              dbEvent.players.every(id => prevPlayerSet.has(id));
+            
+            if (!areEqual) {
+              console.log('Players changed (same count but different), updating from database');
+              loadPlayers(dbEvent.players);
+              return dbEvent;
+            }
+            // Arrays are the same, keep current state but ensure players are loaded
+            loadPlayers(dbEvent.players);
+            return prevEvent;
           }
           // No previous event, use the new one
-          loadPlayers(eventData.players);
-          return eventData;
+          loadPlayers(dbEvent.players);
+          return dbEvent;
         });
-        
+
+        loadPendingRequestsForEvent(id);
+      } else {
+        // Fallback to context if database doesn't have it
+        const eventData = getEvent(id);
+        if (eventData) {
+          setEvent(eventData);
+          loadPlayers(eventData.players);
+          loadPendingRequestsForEvent(id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading event:', error);
+      // Fallback to context
+      const eventData = getEvent(id);
+      if (eventData) {
+        setEvent(eventData);
+        loadPlayers(eventData.players);
         loadPendingRequestsForEvent(id);
       }
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
 
-    loadEvent();
-  }, [id, getEvent, events, getEventRequests]);
+  useEffect(() => {
+    if (!id) return;
+
+    loadEventData();
+    
+    // Set up real-time subscription for event updates
+    let channel: any = null;
+    const setupRealtime = async () => {
+      const { supabase } = await import("../lib/supabase");
+      channel = supabase
+        .channel(`event:${id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'events',
+            filter: `id=eq.${id}`,
+          },
+          (payload) => {
+            console.log('Real-time event update received:', payload);
+            // Reload event data when it's updated
+            loadEventData();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Real-time subscription status for event:', status);
+        });
+    };
+    setupRealtime();
+
+    return () => {
+      // Clean up real-time subscription
+      import("../lib/supabase").then(({ supabase }) => {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      });
+    };
+  }, [id, getEvent, getEventRequests]);
 
   const loadPlayers = async (playerIds: string[]) => {
     if (playerIds.length === 0) {
@@ -774,7 +1053,7 @@ export const OrganizerDashboard: React.FC = () => {
       const playerProfiles = await userService.getUsers(playerIds);
       setPlayers(playerProfiles);
     } catch (error) {
-      console.error('Error loading players:', error);
+      console.error("Error loading players:", error);
       setPlayers([]);
     }
   };
@@ -786,13 +1065,76 @@ export const OrganizerDashboard: React.FC = () => {
         setPendingRequestUsers([]);
         return;
       }
-      
-      const userIds = requests.map(r => r.userId);
+
+      const userIds = requests.map((r) => r.userId);
       const requestProfiles = await userService.getUsers(userIds);
       setPendingRequestUsers(requestProfiles);
     } catch (error) {
-      console.error('Error loading pending requests:', error);
+      console.error("Error loading pending requests:", error);
       setPendingRequestUsers([]);
+    }
+  };
+
+  // Load friends and invitations when invite modal opens
+  useEffect(() => {
+    const loadFriendsAndInvitations = async () => {
+      if (!showInviteModal || !user || !user.friends || user.friends.length === 0 || !id) {
+        setFriends([]);
+        setInvitedFriendIds(new Set());
+        return;
+      }
+
+      try {
+        // Load friends
+        const friendUsers = await Promise.all(
+          user.friends.map(async (friendId) => {
+            try {
+              return await userService.getUserProfile(friendId);
+            } catch {
+              return null;
+            }
+          })
+        );
+        setFriends(friendUsers.filter((u): u is User => u !== null));
+
+        // Load existing invitations for this event
+        const invitations = await getEventInvitations(id);
+        const invitedIds = new Set(invitations.map(inv => inv.userId));
+        setInvitedFriendIds(invitedIds);
+      } catch (error) {
+        console.error('Error loading friends and invitations:', error);
+        setFriends([]);
+        setInvitedFriendIds(new Set());
+      }
+    };
+
+    loadFriendsAndInvitations();
+  }, [showInviteModal, user, id, getEventInvitations]);
+
+  const handleInviteFriend = async (friendId: string) => {
+    if (!event || !id || !user) return;
+
+    // Check if event is past
+    const now = new Date();
+    const eventDateTime = new Date(`${event.date}T${event.time}`);
+    const eventEndTime = event.endTime ? new Date(`${event.date}T${event.endTime}`) : null;
+    const isPast = eventEndTime ? eventEndTime < now : eventDateTime < now;
+
+    if (isPast) {
+      alert(t('events.cannotInvitePast'));
+      return;
+    }
+
+    setInvitingFriendId(friendId);
+    try {
+      await inviteFriendToEvent(id, friendId);
+      // Update state to show "Invited" status
+      setInvitedFriendIds(prev => new Set([...prev, friendId]));
+    } catch (error: any) {
+      console.error('Error inviting friend:', error);
+      alert(error.message || t('events.failedToInvite'));
+    } finally {
+      setInvitingFriendId(null);
     }
   };
 
@@ -805,26 +1147,31 @@ export const OrganizerDashboard: React.FC = () => {
         ...event,
         players: updatedPlayers,
         currentPlayers: updatedPlayers.length,
-        status: updatedPlayers.length >= event.maxPlayers ? 'full' : event.status,
+        status:
+          updatedPlayers.length >= event.maxPlayers ? "full" : event.status,
       };
       setEvent(updatedEvent);
       loadPlayers(updatedPlayers);
-      
+
       // Remove from pending requests optimistically
-      const updatedPendingUsers = pendingRequestUsers.filter(u => u.id !== userId);
+      const updatedPendingUsers = pendingRequestUsers.filter(
+        (u) => u.id !== userId
+      );
       setPendingRequestUsers(updatedPendingUsers);
-      
+
       // Call the approve function
       await approveRequest(id, userId);
-      
+
       // Reload directly from database to ensure we have the latest data
       const checkAndUpdate = async (attempts = 0) => {
         try {
-          const { eventService } = await import('../services/supabaseService');
+          const { eventService } = await import("../services/supabaseService");
           const dbEvent = await eventService.getEvent(id);
-          
+
           if (dbEvent && dbEvent.players.includes(userId)) {
-            console.log('OrganizerDashboard: Player found in database after approval');
+            console.log(
+              "OrganizerDashboard: Player found in database after approval"
+            );
             setEvent(dbEvent);
             await loadPlayers(dbEvent.players);
             await loadPendingRequestsForEvent(id);
@@ -832,7 +1179,9 @@ export const OrganizerDashboard: React.FC = () => {
             // Try again after a delay
             setTimeout(() => checkAndUpdate(attempts + 1), 300);
           } else {
-            console.warn('OrganizerDashboard: Player not found after multiple attempts');
+            console.warn(
+              "OrganizerDashboard: Player not found after multiple attempts"
+            );
             // Fallback to context
             const contextEvent = getEvent(id);
             if (contextEvent) {
@@ -842,24 +1191,25 @@ export const OrganizerDashboard: React.FC = () => {
             await loadPendingRequestsForEvent(id);
           }
         } catch (error) {
-          console.error('OrganizerDashboard: Error checking update:', error);
+          console.error("OrganizerDashboard: Error checking update:", error);
           if (attempts < 5) {
             setTimeout(() => checkAndUpdate(attempts + 1), 300);
           }
         }
       };
-      
+
       // Start checking immediately
       setTimeout(() => checkAndUpdate(), 500);
     } catch (error: any) {
-      console.error('Error approving request:', error);
+      console.error("Error approving request:", error);
       // Revert optimistic update on error
       const originalEvent = getEvent(id) || event;
       setEvent(originalEvent);
       loadPlayers(originalEvent.players);
       loadPendingRequestsForEvent(id);
-      const errorMessage = error?.message || error?.toString() || 'Failed to approve request';
-      alert(`Failed to approve request: ${errorMessage}`);
+      const errorMessage =
+        error?.message || error?.toString() || "Failed to approve request";
+      alert(`${t('events.failedToApprove')}: ${errorMessage}`);
     }
   };
 
@@ -870,21 +1220,29 @@ export const OrganizerDashboard: React.FC = () => {
       // Reload pending requests
       loadPendingRequestsForEvent(id);
     } catch (error) {
-      console.error('Error denying request:', error);
-      alert('Failed to deny request');
+      console.error("Error denying request:", error);
+      alert(t('events.failedToDeny'));
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const days = [
+      t('date.days.sunday'),
+      t('date.days.monday'),
+      t('date.days.tuesday'),
+      t('date.days.wednesday'),
+      t('date.days.thursday'),
+      t('date.days.friday'),
+      t('date.days.saturday'),
+    ];
     return days[date.getDay()];
   };
 
   const formatTime = (timeString: string) => {
-    const [hours, minutes] = timeString.split(':');
+    const [hours, minutes] = timeString.split(":");
     const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? t('date.time.pm') : t('date.time.am');
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
@@ -892,7 +1250,7 @@ export const OrganizerDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-background pb-20 items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-white">{t('common.loading')}</div>
       </div>
     );
   }
@@ -900,8 +1258,10 @@ export const OrganizerDashboard: React.FC = () => {
   if (!event) {
     return (
       <div className="flex flex-col min-h-screen bg-background pb-20 items-center justify-center">
-        <div className="text-white">Event not found</div>
-        <button onClick={() => navigate(-1)} className="mt-4 text-primary">Go Back</button>
+        <div className="text-white">{t('events.eventNotFound')}</div>
+        <button onClick={() => navigate(-1)} className="mt-4 text-primary">
+          {t('events.goBack')}
+        </button>
       </div>
     );
   }
@@ -909,128 +1269,404 @@ export const OrganizerDashboard: React.FC = () => {
   const spotsLeft = event.maxPlayers - event.currentPlayers;
   const progressPercentage = (event.currentPlayers / event.maxPlayers) * 100;
 
+  // Check if event is past
+  const isEventPast = () => {
+    const now = new Date();
+    const eventDateTime = new Date(`${event.date}T${event.time}`);
+    const eventEndTime = event.endTime ? new Date(`${event.date}T${event.endTime}`) : null;
+    
+    // If event has an end time, check if it has ended
+    if (eventEndTime) {
+      return eventEndTime < now;
+    }
+    // If no end time, check if start time has passed
+    return eventDateTime < now;
+  };
+
+  const formatTimeRange = (time: string, endTime?: string) => {
+    if (endTime) {
+      return `${formatTime(time)} - ${formatTime(endTime)}`;
+    }
+    return formatTime(time);
+  };
+
+  const formatFullDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const days = [
+      t('date.days.sunday'),
+      t('date.days.monday'),
+      t('date.days.tuesday'),
+      t('date.days.wednesday'),
+      t('date.days.thursday'),
+      t('date.days.friday'),
+      t('date.days.saturday'),
+    ];
+    const months = [
+      t('date.months.january'),
+      t('date.months.february'),
+      t('date.months.march'),
+      t('date.months.april'),
+      t('date.months.may'),
+      t('date.months.june'),
+      t('date.months.july'),
+      t('date.months.august'),
+      t('date.months.september'),
+      t('date.months.october'),
+      t('date.months.november'),
+      t('date.months.december'),
+    ];
+    const dayName = days[date.getDay()];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${dayName}, ${day} ${month} ${year}`;
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20">
+    <div className="flex flex-col min-h-screen bg-background pb-20 lg:pb-4">
       <div className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md">
-        <div className="flex items-center justify-between px-4 py-3">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center"><span className="material-symbols-outlined">arrow_back_ios_new</span></button>
-          <div className="flex gap-2">
-            <button className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-primary"><span className="material-symbols-outlined">share</span></button>
-            <button onClick={() => navigate(`/event/edit/${event.id}`)} className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-primary"><span className="material-symbols-outlined">edit</span></button>
+        <div className="flex items-center justify-between px-3 py-2 lg:px-4 lg:py-1.5">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center lg:w-7 lg:h-7"
+          >
+            <span className="material-symbols-outlined text-base lg:text-sm">
+              arrow_back_ios_new
+            </span>
+          </button>
+          <div className="flex gap-1.5 lg:gap-1">
+            <button className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-primary lg:w-7 lg:h-7">
+              <span className="material-symbols-outlined text-base lg:text-sm">share</span>
+            </button>
+            <button
+              onClick={() => navigate(`/event/edit/${event.id}`)}
+              className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-primary lg:w-7 lg:h-7"
+            >
+              <span className="material-symbols-outlined text-base lg:text-sm">edit</span>
+            </button>
           </div>
         </div>
-        <div className="px-5 pb-4">
-          <h1 className="text-2xl font-extrabold leading-tight">{event.title}</h1>
-          <div className="flex items-center gap-1 text-slate-400 text-sm mt-1">
-            <span className="material-symbols-outlined text-[16px]">location_on</span> {event.location} • {formatTime(event.time)}
+        <div className="px-4 pb-3 lg:px-6 lg:pb-2">
+          <div className="lg:max-w-4xl lg:mx-auto lg:w-full">
+          <div className="flex gap-1.5 mb-2 flex-wrap">
+            <span className="px-2 py-1 rounded-lg text-xs font-bold bg-primary/20 text-primary border border-primary/30">
+              {event.sport}
+            </span>
+            {event.code && (
+              <span className="px-2 py-1 rounded-lg text-xs font-bold bg-primary/20 text-primary border border-primary/30 flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">tag</span>
+                {event.code}
+              </span>
+            )}
+            {event.skillLevel !== "All" && (
+              <span className="px-2 py-1 rounded-lg text-xs font-bold bg-surface border border-white/10 text-slate-300">
+                {t(`events.skillLevel.${event.skillLevel.toLowerCase()}`)}
+              </span>
+            )}
+            {event.competitive && (
+              <span className="px-2 py-1 rounded-lg text-xs font-bold bg-gradient-to-br from-yellow-400 to-green-400 text-black">
+                {t('events.competitive')}
+              </span>
+            )}
+          </div>
+          <h1 className="text-xl font-extrabold leading-tight mb-3 text-white lg:text-lg lg:mb-2">
+            {event.title}
+          </h1>
+          <div className="space-y-2 lg:space-y-1.5">
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 lg:px-2.5 lg:py-1.5 lg:rounded">
+              <span className="material-symbols-outlined text-base text-primary lg:text-sm">calendar_month</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-white lg:text-xs">{formatFullDate(event.date)}</div>
+                <div className="text-xs text-slate-300 lg:text-[11px]">{formatTimeRange(event.time, event.endTime)}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-surface border border-white/10 rounded-lg px-3 py-2 lg:px-2.5 lg:py-1.5 lg:rounded">
+              <span className="material-symbols-outlined text-base text-slate-400 lg:text-sm">location_on</span>
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-white lg:text-xs">{event.location}</div>
+                {event.locationDetails && (
+                  <div className="text-xs text-slate-400 mt-0.5 lg:text-[11px] lg:mt-0">{event.locationDetails}</div>
+                )}
+              </div>
+            </div>
+            {event.price && event.price > 0 && (
+              <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 lg:px-2.5 lg:py-1.5 lg:rounded">
+                <span className="material-symbols-outlined text-base text-green-400 lg:text-sm">payments</span>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-green-400 lg:text-xs">
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(event.price)}
+                  </div>
+                  <div className="text-xs text-slate-400 lg:text-[11px]">{t('events.eventFee')}</div>
+                </div>
+              </div>
+            )}
+          </div>
           </div>
         </div>
       </div>
 
-      <div className="p-5 space-y-6">
-        <div className="bg-surface border border-white/5 p-5 rounded-2xl">
-          <div className="flex justify-between items-end mb-3">
-            <span className="font-bold">Roster Status</span>
-            <span className="text-sm text-slate-400">{event.currentPlayers}/{event.maxPlayers} Confirmed</span>
+      <div className="p-4 space-y-3 lg:p-6 lg:space-y-2">
+        <div className="lg:max-w-4xl lg:mx-auto lg:w-full">
+        {/* Tab Navigation with Roster Info */}
+        <div className="bg-surface border border-white/5 rounded-xl p-3 lg:rounded-lg lg:p-2">
+          <div className="flex items-center justify-between mb-3 lg:mb-2">
+            <div className="flex items-center gap-2 lg:gap-1.5">
+              <span className="text-xs text-slate-400 lg:text-[11px]">{t('events.roster')}:</span>
+              <span className="text-sm font-bold lg:text-xs">
+                {event.currentPlayers}/{event.maxPlayers}
+              </span>
+              {spotsLeft > 0 && (
+                <span className="text-[10px] text-slate-500 lg:text-[9px]">
+                  ({spotsLeft} {spotsLeft === 1 ? t('events.spot') : t('events.spots')} {t('events.left')})
+                </span>
+              )}
+            </div>
+            {spotsLeft > 0 && !isEventPast() && (
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg flex items-center gap-1.5 transition-colors text-xs lg:px-2.5 lg:py-1 lg:text-[11px] lg:rounded"
+              >
+                <span className="material-symbols-outlined text-sm lg:text-xs">
+                  ios_share
+                </span>
+                {t('events.invite')}
+              </button>
+            )}
           </div>
-          <div className="h-3 bg-white/5 rounded-full overflow-hidden mb-2">
-            <div 
-              className="h-full bg-gradient-to-r from-yellow-400 to-green-400 transition-all"
-              style={{ width: `${progressPercentage}%` }}
-            ></div>
+          <div className="flex gap-1.5 lg:gap-1">
+            <button
+              onClick={() => setActiveTab("confirmed")}
+              className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all lg:px-2.5 lg:py-1.5 lg:text-[11px] lg:rounded ${
+                activeTab === "confirmed"
+                  ? "bg-primary text-white shadow-lg shadow-primary/20"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+              }`}
+            >
+              {t('events.confirmed')}
+              {event.currentPlayers > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] lg:ml-1 lg:px-1 lg:py-0 lg:text-[9px] ${
+                  activeTab === "confirmed"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}>
+                  {event.currentPlayers}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("pending")}
+              className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all lg:px-2.5 lg:py-1.5 lg:text-[11px] lg:rounded ${
+                activeTab === "pending"
+                  ? "bg-primary text-white shadow-lg shadow-primary/20"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+              }`}
+            >
+              {t('events.pending')}
+              {pendingRequestUsers.length > 0 && (
+                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] lg:ml-1 lg:px-1 lg:py-0 lg:text-[9px] ${
+                  activeTab === "pending"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}>
+                  {pendingRequestUsers.length}
+                </span>
+              )}
+            </button>
           </div>
-          <p className="text-xs text-slate-500">
-            {spotsLeft === 0 
-              ? 'Event is full!' 
-              : spotsLeft === 1
-              ? '1 spot remaining. Promote your event to fill up fast!'
-              : `${spotsLeft} spots remaining. Promote your event to fill up fast!`}
-          </p>
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-xl font-bold flex items-center gap-2">Pending Requests <span className="text-primary text-base">({pendingRequestUsers.length})</span></h3>
-            {pendingRequestUsers.length > 0 && (
-              <button className="text-sm text-primary font-bold">View All</button>
-            )}
-          </div>
-          <div className="space-y-3">
-            {pendingRequestUsers.length === 0 ? (
-              <div className="bg-surface p-4 rounded-2xl border border-white/5 text-center text-slate-400 text-sm">
-                No pending requests
-              </div>
-            ) : (
-              pendingRequestUsers.map((requestUser) => (
-                <div key={requestUser.id} className="bg-surface p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar 
-                      src={requestUser.avatar || `https://i.pravatar.cc/150?u=${requestUser.id}`} 
-                      size="w-10 h-10"
-                    />
-                    <div>
-                      <p className="font-semibold text-sm">{requestUser.firstName} {requestUser.lastName}</p>
-                      <p className="text-xs text-slate-400">Level {requestUser.level}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(requestUser.id)}
-                      className="px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg font-bold text-green-400 hover:bg-green-500/20 transition-colors"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleDeny(requestUser.id)}
-                      className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg font-bold text-red-400 hover:bg-red-500/20 transition-colors"
-                    >
-                      Deny
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
 
-        <div>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-xl font-bold flex items-center gap-2">Confirmed Players <span className="text-slate-400 text-base font-normal">({event.currentPlayers})</span></h3>
-            {players.length > 0 && (
-              <button className="text-sm text-primary font-bold flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">chat</span> Message All</button>
-            )}
-          </div>
-          <div className="bg-surface rounded-3xl border border-white/5 divide-y divide-white/5">
-            {players.length === 0 ? (
-              <div className="p-4 text-center text-slate-400 text-sm">
-                No players yet
-              </div>
-            ) : (
-              players.slice(0, 4).map((player, i) => (
-                <div key={player.id} className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar 
-                      src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`} 
-                      size="w-10 h-10"
-                    />
-                    <div>
-                      <p className="font-semibold text-sm">{player.firstName} {player.lastName}</p>
-                      <p className="text-xs text-slate-400">Level {player.level}</p>
+          {/* Tab Content */}
+          {activeTab === "pending" ? (
+            <div className="space-y-2">
+                {pendingRequestUsers.length === 0 ? (
+                  <div className="bg-surface p-3 rounded-xl border border-white/5 text-center text-slate-400 text-xs lg:rounded-lg lg:p-2 lg:text-[11px]">
+                    {t('events.noPendingRequests')}
+                  </div>
+                ) : (
+                  pendingRequestUsers.map((requestUser) => (
+                    <div
+                      key={requestUser.id}
+                      className="bg-surface p-3 rounded-xl border border-white/5 flex items-center justify-between lg:rounded-lg lg:p-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar
+                          src={
+                            requestUser.avatar ||
+                            `https://i.pravatar.cc/150?u=${requestUser.id}`
+                          }
+                          size="w-8 h-8"
+                        />
+                        <div>
+                          <p className="font-semibold text-xs lg:text-[11px]">
+                            {requestUser.firstName} {requestUser.lastName}
+                          </p>
+                          <p className="text-[10px] text-slate-400 lg:text-[9px]">
+                            Level {requestUser.level}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 lg:gap-1">
+                        <button
+                          onClick={() => handleApprove(requestUser.id)}
+                          className="px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-lg font-bold text-green-400 hover:bg-green-500/20 transition-colors text-xs lg:px-2.5 lg:py-1 lg:text-[11px] lg:rounded"
+                        >
+                          {t('events.approve')}
+                        </button>
+                        <button
+                          onClick={() => handleDeny(requestUser.id)}
+                          className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg font-bold text-red-400 hover:bg-red-500/20 transition-colors text-xs lg:px-2.5 lg:py-1 lg:text-[11px] lg:rounded"
+                        >
+                          {t('events.deny')}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="px-2 py-1 rounded text-xs font-bold flex items-center gap-1 bg-green-500/10 text-green-500">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    Confirmed
-                  </div>
+                  ))
+                )}
+            </div>
+          ) : (
+            <div>
+              {players.length > 0 && (
+                <div className="flex justify-end mb-2">
+                  <button className="text-xs text-primary font-bold flex items-center gap-1 hover:text-primary-hover transition-colors">
+                    <span className="material-symbols-outlined text-sm">
+                      chat
+                    </span>
+                    {t('events.messageAll')}
+                  </button>
                 </div>
-              ))
-            )}
-          </div>
-          {players.length > 4 && (
-            <button className="w-full py-3 text-primary font-bold text-sm mt-2">View All {players.length} Players</button>
+              )}
+              <div className="bg-surface rounded-xl border border-white/5 divide-y divide-white/5 lg:rounded-lg">
+                {players.length === 0 ? (
+                  <div className="p-3 text-center text-slate-400 text-xs lg:p-2 lg:text-[11px]">
+                    {t('events.noPlayersYet')}
+                  </div>
+                ) : (
+                  players.slice(0, 4).map((player, i) => (
+                    <div
+                      key={player.id}
+                      className="flex items-center justify-between p-3 lg:p-2"
+                    >
+                      <div className="flex items-center gap-2 lg:gap-1.5">
+                        <Avatar
+                          src={
+                            player.avatar ||
+                            `https://i.pravatar.cc/150?u=${player.id}`
+                          }
+                          size="w-8 h-8 lg:w-7 lg:h-7"
+                        />
+                        <div>
+                          <p className="font-semibold text-xs lg:text-[11px]">
+                            {player.firstName} {player.lastName}
+                          </p>
+                          <p className="text-[10px] text-slate-400 lg:text-[9px]">
+                            Level {player.level}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 bg-green-500/10 text-green-500 lg:px-1 lg:py-0 lg:text-[9px]">
+                        <span className="material-symbols-outlined text-xs lg:text-[10px]">
+                          check_circle
+                        </span>
+                        {t('events.confirmed')}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {players.length > 4 && (
+                <button className="w-full py-2 text-primary font-bold text-xs mt-2 lg:py-1.5 lg:text-[11px] lg:mt-1.5">
+                  {t('events.viewAll')} {players.length} {t('events.players')}
+                </button>
+              )}
+            </div>
           )}
         </div>
+        </div>
       </div>
+
+      {/* Invite Friends Modal */}
+      {showInviteModal && event && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl border border-white/10 w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="text-xl font-bold">Invite Friends</h2>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm lg:text-xs">close</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 lg:p-3">
+              {friends.length === 0 ? (
+                <div className="text-center text-slate-400 py-8 lg:py-6">
+                  <p className="lg:text-sm">No friends to invite</p>
+                  <p className="text-xs mt-2 lg:text-[11px] lg:mt-1.5">{t('events.addFriendsHint')}</p>
+                </div>
+              ) : (
+                <div className="space-y-2 lg:space-y-1.5">
+                  {friends
+                    .filter(friend => {
+                      const isAlreadyPlayer = event.players.includes(friend.id);
+                      const hasPendingRequest = pendingRequestUsers.some(req => req.id === friend.id);
+                      const hasBeenInvited = invitedFriendIds.has(friend.id);
+                      return !isAlreadyPlayer && !hasPendingRequest && !hasBeenInvited;
+                    })
+                    .map((friend) => (
+                      <div
+                        key={friend.id}
+                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10 lg:p-2 lg:rounded-lg"
+                      >
+                        <div className="flex items-center gap-3 lg:gap-2">
+                          <Avatar
+                            src={friend.avatar || `https://i.pravatar.cc/150?u=${friend.id}`}
+                            size="w-10 h-10 lg:w-9 lg:h-9"
+                          />
+                          <div>
+                            <p className="font-bold text-sm lg:text-xs">{friend.firstName} {friend.lastName}</p>
+                            <p className="text-xs text-slate-400 lg:text-[11px]">{friend.userId}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleInviteFriend(friend.id)}
+                          disabled={invitingFriendId === friend.id || invitedFriendIds.has(friend.id)}
+                          className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors disabled:cursor-not-allowed lg:px-3 lg:py-1.5 lg:text-xs lg:rounded ${
+                            invitedFriendIds.has(friend.id)
+                              ? 'bg-green-500/10 border border-green-500/30 text-green-400 cursor-not-allowed'
+                              : invitingFriendId === friend.id
+                              ? 'bg-primary/50 text-white'
+                              : 'bg-primary hover:bg-primary-hover text-white'
+                          }`}
+                        >
+                          {invitingFriendId === friend.id 
+                            ? 'Sending...' 
+                            : invitedFriendIds.has(friend.id)
+                            ? 'Invited'
+                            : 'Invite'}
+                        </button>
+                      </div>
+                    ))}
+                  {friends.filter(friend => {
+                    const isAlreadyPlayer = event.players.includes(friend.id);
+                    const hasPendingRequest = pendingRequestUsers.some(req => req.id === friend.id);
+                    const hasBeenInvited = invitedFriendIds.has(friend.id);
+                    return !isAlreadyPlayer && !hasPendingRequest && !hasBeenInvited;
+                  }).length === 0 && (
+                    <div className="text-center text-slate-400 py-4">
+                      <p>{t('events.allFriendsInvited')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1039,14 +1675,47 @@ export const EventDetails: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { getEvent, requestToJoin, leaveEvent, events, getUserPendingRequest, getUserEventRequest, getUserApprovedRequest } = useEvents();
+  const {
+    getEvent,
+    requestToJoin,
+    leaveEvent,
+    events,
+    getUserPendingRequest,
+    getUserEventRequest,
+    getUserApprovedRequest,
+    inviteFriendToEvent,
+    getEventInvitations,
+    acceptInvitation,
+    denyInvitation,
+  } = useEvents();
   const { getOrCreateChat } = useMessages();
+  const { t } = useLanguage();
   const [event, setEvent] = useState<Event | null>(null);
   const [players, setPlayers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
+  const [hasInvitedRequest, setHasInvitedRequest] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [friends, setFriends] = useState<User[]>([]);
+  const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
+  const [invitedFriendIds, setInvitedFriendIds] = useState<Set<string>>(new Set());
+
+  // Check if event is past - defined early so it's always in scope
+  const isEventPast = () => {
+    if (!event) return false;
+    const now = new Date();
+    const eventDateTime = new Date(`${event.date}T${event.time}`);
+    const eventEndTime = event.endTime ? new Date(`${event.date}T${event.endTime}`) : null;
+    
+    // If event has an end time, check if it has ended
+    if (eventEndTime) {
+      return eventEndTime < now;
+    }
+    // If no end time, check if start time has passed
+    return eventDateTime < now;
+  };
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -1057,140 +1726,185 @@ export const EventDetails: React.FC = () => {
 
       try {
         // Force reload from database first to get latest data
-        const { eventService } = await import('../services/supabaseService');
+        const { eventService } = await import("../services/supabaseService");
         let eventData = await eventService.getEvent(id);
-        
+
         // If not found in database, try context
         if (!eventData) {
           eventData = getEvent(id);
         }
-        
+
         // If still not found, try events array
         if (!eventData) {
-          eventData = events.find(e => e.id === id);
+          eventData = events.find((e) => e.id === id);
         }
-        
+
         if (eventData) {
-          console.log('EventDetails: Loaded event with players:', eventData.players);
+          console.log(
+            "EventDetails: Loaded event with players:",
+            eventData.players
+          );
           // Always update event and players to ensure we have latest data
           setEvent(eventData);
           await loadPlayers(eventData.players);
-          
-          // Check if user has a pending or approved request
+
+          // Check if user has a pending, approved, or invited request
           // If user is in players list, they're approved/joined
           if (user) {
             if (eventData.players.includes(user.id)) {
               setHasPendingRequest(false);
               setHasApprovedRequest(false);
+              setHasInvitedRequest(false);
             } else {
               try {
-                const pendingRequest = await getUserPendingRequest(id);
-                setHasPendingRequest(!!pendingRequest);
-                // Also check for approved request (in case approval happened but event hasn't reloaded)
-                if (!pendingRequest) {
-                  const approvedRequest = await getUserApprovedRequest(id);
-                  setHasApprovedRequest(!!approvedRequest);
-                  // If user has approved request but isn't in players list yet, 
-                  // the approval might have just happened - reload event after a short delay
-                  if (approvedRequest) {
+                const userRequest = await getUserEventRequest(id);
+                if (userRequest) {
+                  if (userRequest.status === 'pending') {
+                    setHasPendingRequest(true);
+                    setHasApprovedRequest(false);
+                    setHasInvitedRequest(false);
+                  } else if (userRequest.status === 'invited') {
+                    setHasPendingRequest(false);
+                    setHasApprovedRequest(false);
+                    setHasInvitedRequest(true);
+                  } else if (userRequest.status === 'approved') {
+                    setHasPendingRequest(false);
+                    setHasApprovedRequest(true);
+                    setHasInvitedRequest(false);
+                    // If user has approved request but isn't in players list yet,
+                    // the approval might have just happened - reload event after a short delay
                     setTimeout(async () => {
                       const refreshedEvent = getEvent(id);
-                      if (refreshedEvent && refreshedEvent.players.includes(user.id)) {
+                      if (
+                        refreshedEvent &&
+                        refreshedEvent.players.includes(user.id)
+                      ) {
                         setEvent(refreshedEvent);
                         await loadPlayers(refreshedEvent.players);
                         setHasApprovedRequest(false); // Clear approved request flag since they're now in players
                       }
                     }, 1000);
+                  } else {
+                    setHasPendingRequest(false);
+                    setHasApprovedRequest(false);
+                    setHasInvitedRequest(false);
                   }
                 } else {
+                  // No request found, check for pending separately for backward compatibility
+                  const pendingRequest = await getUserPendingRequest(id);
+                  setHasPendingRequest(!!pendingRequest);
                   setHasApprovedRequest(false);
+                  setHasInvitedRequest(false);
                 }
               } catch (error) {
-                console.error('Error checking request status:', error);
+                console.error("Error checking request status:", error);
                 setHasPendingRequest(false);
                 setHasApprovedRequest(false);
+                setHasInvitedRequest(false);
               }
             }
           } else {
             setHasPendingRequest(false);
             setHasApprovedRequest(false);
+            setHasInvitedRequest(false);
           }
         } else {
           // Event not found - this shouldn't happen if we loaded from DB above
-          console.warn('EventDetails: Event not found in any source');
+          console.warn("EventDetails: Event not found in any source");
           setHasPendingRequest(false);
           setHasApprovedRequest(false);
         }
       } catch (error) {
-        console.error('Error loading event:', error);
+        console.error("Error loading event:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadEvent();
-    
-    // Also set up a periodic refresh to catch updates from other users
-    const refreshInterval = setInterval(async () => {
+
+    // Set up real-time subscription for event updates
+    let channel: any = null;
+    const setupRealtime = async () => {
       if (!id) return;
       
-      // Reload directly from database to get latest data
-      try {
-        const { eventService } = await import('../services/supabaseService');
-        const dbEvent = await eventService.getEvent(id);
-        if (dbEvent) {
-          console.log('EventDetails: Periodic refresh - players:', dbEvent.players, 'count:', dbEvent.players.length);
-          
-          // Check if players array changed by comparing with current event state
-          setEvent(prevEvent => {
-            if (!prevEvent) {
-              console.log('EventDetails: No previous event, setting new event');
-              // Load players outside setState
-              setTimeout(() => loadPlayers(dbEvent.players), 0);
-              return dbEvent;
+      const { supabase } = await import("../lib/supabase");
+      channel = supabase
+        .channel(`event_details:${id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'events',
+            filter: `id=eq.${id}`,
+          },
+          async (payload) => {
+            console.log('EventDetails: Real-time event update received:', payload);
+            // Reload event data when it's updated
+            try {
+              const { eventService } = await import("../services/supabaseService");
+              const dbEvent = await eventService.getEvent(id);
+              if (dbEvent) {
+                setEvent((prevEvent) => {
+                  if (!prevEvent) {
+                    setTimeout(() => loadPlayers(dbEvent.players), 0);
+                    return dbEvent;
+                  }
+
+                  // Check if players array changed
+                  const prevPlayerIds = [...prevEvent.players].sort().join(",");
+                  const currentPlayerIds = [...dbEvent.players].sort().join(",");
+                  const playersChanged =
+                    prevPlayerIds !== currentPlayerIds ||
+                    prevEvent.players.length !== dbEvent.players.length;
+
+                  if (playersChanged || 
+                      prevEvent.currentPlayers !== dbEvent.currentPlayers ||
+                      prevEvent.status !== dbEvent.status) {
+                    setTimeout(() => loadPlayers(dbEvent.players), 0);
+                    return { ...dbEvent };
+                  }
+                  return prevEvent;
+                });
+              }
+            } catch (error) {
+              console.error("EventDetails: Error loading updated event:", error);
             }
-            
-            // Check if players array changed
-            const prevPlayerIds = [...prevEvent.players].sort().join(',');
-            const currentPlayerIds = [...dbEvent.players].sort().join(',');
-            const playersChanged = prevPlayerIds !== currentPlayerIds || prevEvent.players.length !== dbEvent.players.length;
-            
-            if (playersChanged) {
-              console.log('EventDetails: Players changed!');
-              console.log('EventDetails: Previous players:', prevEvent.players);
-              console.log('EventDetails: New players:', dbEvent.players);
-              // Load players outside setState to avoid issues
-              setTimeout(() => loadPlayers(dbEvent.players), 0);
-              // Return new event object to trigger re-render
-              return { ...dbEvent };
-            }
-            // Even if players didn't change, update other fields that might have changed
-            if (prevEvent.currentPlayers !== dbEvent.currentPlayers || 
-                prevEvent.status !== dbEvent.status) {
-              return { ...dbEvent };
-            }
-            return prevEvent;
-          });
+          }
+        )
+        .subscribe((status) => {
+          console.log('EventDetails: Real-time subscription status:', status);
+        });
+    };
+    setupRealtime();
+
+    return () => {
+      // Clean up real-time subscription
+      import("../lib/supabase").then(({ supabase }) => {
+        if (channel) {
+          supabase.removeChannel(channel);
         }
-      } catch (error) {
-        console.error('EventDetails: Error refreshing event:', error);
-      }
-    }, 2000); // Check every 2 seconds
-    
-    return () => clearInterval(refreshInterval);
-  }, [id, getEvent, events, user, getUserPendingRequest, getUserApprovedRequest]);
+      });
+    };
+    // Only depend on id - other dependencies are stable or handled via refs/callbacks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // Reload players whenever event.players changes
   useEffect(() => {
     if (event && event.players && event.players.length > 0) {
-      const playersKey = event.players.sort().join(',');
-      console.log('EventDetails: event.players changed, reloading player profiles:', event.players);
+      const playersKey = event.players.sort().join(",");
+      console.log(
+        "EventDetails: event.players changed, reloading player profiles:",
+        event.players
+      );
       loadPlayers(event.players);
     } else if (event && (!event.players || event.players.length === 0)) {
       setPlayers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event?.players ? event.players.sort().join(',') : '']); // Use sorted join to create a stable dependency
+  }, [event?.players ? event.players.sort().join(",") : ""]); // Use sorted join to create a stable dependency
 
   const loadPlayers = async (playerIds: string[]) => {
     if (playerIds.length === 0) {
@@ -1202,22 +1916,47 @@ export const EventDetails: React.FC = () => {
       const playerProfiles = await userService.getUsers(playerIds);
       setPlayers(playerProfiles);
     } catch (error) {
-      console.error('Error loading players:', error);
+      console.error("Error loading players:", error);
       setPlayers([]);
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+    const days = [
+      t('date.days.sunday'),
+      t('date.days.monday'),
+      t('date.days.tuesday'),
+      t('date.days.wednesday'),
+      t('date.days.thursday'),
+      t('date.days.friday'),
+      t('date.days.saturday'),
+    ];
+    const months = [
+      t('date.months.january'),
+      t('date.months.february'),
+      t('date.months.march'),
+      t('date.months.april'),
+      t('date.months.may'),
+      t('date.months.june'),
+      t('date.months.july'),
+      t('date.months.august'),
+      t('date.months.september'),
+      t('date.months.october'),
+      t('date.months.november'),
+      t('date.months.december'),
+    ];
+    const dayName = days[date.getDay()];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${dayName}, ${day} ${month} ${year}`;
   };
 
   const formatTime = (timeString: string) => {
-    const [hours, minutes] = timeString.split(':');
+    const [hours, minutes] = timeString.split(":");
     const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? t('date.time.pm') : t('date.time.am');
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
@@ -1231,63 +1970,100 @@ export const EventDetails: React.FC = () => {
 
   const getSportIcon = (sport: string) => {
     const iconMap: Record<string, string> = {
-      'Tennis': 'sports_tennis',
-      'Pickleball': 'sports_tennis',
-      'Badminton': 'sports_tennis',
-      'Basketball': 'sports_basketball',
-      'Soccer': 'sports_soccer',
-      'Volleyball': 'sports_volleyball',
+      Tennis: "sports_tennis",
+      Pickleball: "sports_tennis",
+      Badminton: "sports_tennis",
+      Basketball: "sports_basketball",
+      Soccer: "sports_soccer",
+      Volleyball: "sports_volleyball",
     };
-    return iconMap[sport] || 'sports';
+    return iconMap[sport] || "sports";
   };
 
   const handleGetDirections = () => {
     if (event?.location) {
       const encodedLocation = encodeURIComponent(event.location);
-      window.open(`https://www.google.com/maps/search/?api=1&query=${encodedLocation}`, '_blank');
+      window.open(
+        `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`,
+        "_blank"
+      );
     }
   };
 
   const handleJoin = async () => {
-    console.log('handleJoin called', { event: !!event, user: !!user, eventId: event?.id, userId: user?.id });
-    
+    console.log("handleJoin called", {
+      event: !!event,
+      user: !!user,
+      eventId: event?.id,
+      userId: user?.id,
+    });
+
     if (!event || !user) {
-      console.error('Cannot request: missing event or user', { event: !!event, user: !!user });
+      console.error("Cannot request: missing event or user", {
+        event: !!event,
+        user: !!user,
+      });
       return;
     }
-    
+
+    // Prevent joining past events
+    if (isEventPast()) {
+      alert(t('events.cannotJoinPast'));
+      return;
+    }
+
     setIsJoining(true);
     try {
-      console.log('Requesting to join event:', event.id, 'User:', user.id);
-      
+      // If user has an invitation, accept it instead of requesting
+      if (hasInvitedRequest) {
+        console.log("Accepting invitation to event:", event.id, "User:", user.id);
+        await acceptInvitation(event.id);
+        console.log("Successfully accepted invitation - database updated");
+        // Reload event to get updated players list
+        setTimeout(async () => {
+          const { eventService } = await import("../services/supabaseService");
+          const updatedEvent = await eventService.getEvent(event.id);
+          if (updatedEvent) {
+            setEvent(updatedEvent);
+            await loadPlayers(updatedEvent.players);
+            setHasInvitedRequest(false);
+          }
+        }, 500);
+        setIsJoining(false);
+        return;
+      }
+
+      console.log("Requesting to join event:", event.id, "User:", user.id);
+
       // Optimistically update the UI
       setHasPendingRequest(true);
       setHasApprovedRequest(false);
-      console.log('Set hasPendingRequest to true');
-      
+      setHasInvitedRequest(false);
+      console.log("Set hasPendingRequest to true");
+
       await requestToJoin(event.id);
-      console.log('Successfully requested to join event - database updated');
-      
+      console.log("Successfully requested to join event - database updated");
+
       // Verify the request was created
       setTimeout(async () => {
         try {
           const pendingRequest = await getUserPendingRequest(event.id);
-          console.log('Verified pending request:', pendingRequest);
+          console.log("Verified pending request:", pendingRequest);
           setHasPendingRequest(!!pendingRequest);
           if (!pendingRequest) {
             const approvedRequest = await getUserApprovedRequest(event.id);
             setHasApprovedRequest(!!approvedRequest);
           }
         } catch (error) {
-          console.error('Error verifying request status:', error);
+          console.error("Error verifying request status:", error);
         }
       }, 500);
     } catch (err: any) {
-      console.error('Error requesting to join event:', err);
+      console.error("Error requesting to join event:", err);
       // Revert optimistic update on error
       setHasPendingRequest(false);
       setHasApprovedRequest(false);
-      alert(err.message || 'Failed to request to join event');
+      alert(err.message || t('events.failedToJoin'));
     } finally {
       setIsJoining(false);
     }
@@ -1295,21 +2071,58 @@ export const EventDetails: React.FC = () => {
 
   const handleLeave = async () => {
     if (!event || !user) return;
-    
+
     setIsJoining(true);
     try {
       await leaveEvent(event.id);
-      // Reload event data
-      const updatedEvent = getEvent(event.id);
+      
+      // Reload event data from database
+      const { eventService } = await import("../services/supabaseService");
+      const updatedEvent = await eventService.getEvent(event.id);
+      
       if (updatedEvent) {
         setEvent(updatedEvent);
-        loadPlayers(updatedEvent.players);
+        await loadPlayers(updatedEvent.players);
         // Reset request states
         setHasPendingRequest(false);
         setHasApprovedRequest(false);
+        setHasInvitedRequest(false);
+      } else {
+        // Fallback to context
+        const contextEvent = getEvent(event.id);
+        if (contextEvent) {
+          setEvent(contextEvent);
+          await loadPlayers(contextEvent.players);
+        }
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to leave event');
+      console.error('Error leaving event:', err);
+      alert(err.message || t('events.failedToLeave'));
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleDenyInvitation = async () => {
+    if (!event || !user || !hasInvitedRequest) return;
+    
+    setIsJoining(true);
+    try {
+      console.log("Denying invitation to event:", event.id, "User:", user.id);
+      await denyInvitation(event.id);
+      console.log("Successfully denied invitation - database updated");
+      setHasInvitedRequest(false);
+      // Optionally reload event to ensure UI is in sync
+      setTimeout(async () => {
+        const { eventService } = await import("../services/supabaseService");
+        const updatedEvent = await eventService.getEvent(event.id);
+        if (updatedEvent) {
+          setEvent(updatedEvent);
+        }
+      }, 500);
+    } catch (error: any) {
+      console.error("Error denying invitation:", error);
+      alert(error.message || t('events.failedToDeny'));
     } finally {
       setIsJoining(false);
     }
@@ -1317,20 +2130,83 @@ export const EventDetails: React.FC = () => {
 
   const handleChat = async () => {
     if (!event || !user) return;
-    
+
     try {
       // Get or create chat with organizer
       const chatId = await getOrCreateChat(event.organizerId);
       navigate(`/chat/${chatId}`);
     } catch (err) {
-      console.error('Failed to open chat:', err);
+      console.error("Failed to open chat:", err);
+    }
+  };
+
+  // Load friends and invitations when invite modal opens
+  useEffect(() => {
+    const loadFriendsAndInvitations = async () => {
+      if (!showInviteModal || !user || !user.friends || user.friends.length === 0 || !id) {
+        setFriends([]);
+        setInvitedFriendIds(new Set());
+        return;
+      }
+
+      try {
+        // Load friends
+        const friendUsers = await Promise.all(
+          user.friends.map(async (friendId) => {
+            try {
+              return await userService.getUserProfile(friendId);
+            } catch {
+              return null;
+            }
+          })
+        );
+        setFriends(friendUsers.filter((u): u is User => u !== null));
+
+        // Load existing invitations for this event
+        const invitations = await getEventInvitations(id);
+        const invitedIds = new Set(invitations.map(inv => inv.userId));
+        setInvitedFriendIds(invitedIds);
+      } catch (error) {
+        console.error('Error loading friends and invitations:', error);
+        setFriends([]);
+        setInvitedFriendIds(new Set());
+      }
+    };
+
+    loadFriendsAndInvitations();
+  }, [showInviteModal, user, id, getEventInvitations]);
+
+  const handleInviteFriend = async (friendId: string) => {
+    if (!event || !id) return;
+
+    // Check if event is past
+    const now = new Date();
+    const eventDateTime = new Date(`${event.date}T${event.time}`);
+    const eventEndTime = event.endTime ? new Date(`${event.date}T${event.endTime}`) : null;
+    const isPast = eventEndTime ? eventEndTime < now : eventDateTime < now;
+
+    if (isPast) {
+      alert(t('events.cannotInvitePast'));
+      return;
+    }
+
+    setInvitingFriendId(friendId);
+    try {
+      await inviteFriendToEvent(id, friendId);
+      // Update state to show "Invited" status
+      setInvitedFriendIds(prev => new Set([...prev, friendId]));
+    } catch (error: any) {
+      console.error('Error inviting friend:', error);
+      alert(error.message || t('events.failedToInvite'));
+    } finally {
+      setInvitingFriendId(null);
     }
   };
 
   if (isLoading) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-white">{t('common.loading')}</div>
       </div>
     );
   }
@@ -1338,7 +2214,7 @@ export const EventDetails: React.FC = () => {
   if (!event) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
-        <div className="text-white">Event not found</div>
+        <div className="text-white">{t('events.eventNotFound')}</div>
       </div>
     );
   }
@@ -1352,259 +2228,445 @@ export const EventDetails: React.FC = () => {
 
   return (
     <div className="bg-background min-h-screen flex flex-col relative pb-24">
-      <div className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-4 py-3 bg-white/10 backdrop-blur-md border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur"><span className="material-symbols-outlined">arrow_back</span></button>
-        <h2 className="font-bold text-lg">Event Details</h2>
-        <button className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur"><span className="material-symbols-outlined text-[20px]">ios_share</span></button>
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/5">
+        <div className="w-full flex justify-between items-center px-3 py-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center backdrop-blur"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+          </button>
+          <h2 className="font-bold text-sm">{t('events.eventDetails')}</h2>
+          <button className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center backdrop-blur">
+            <span className="material-symbols-outlined text-base">
+              ios_share
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div className="relative w-full h-[300px] shrink-0">
-        <img 
-          src={event.image || `https://images.unsplash.com/photo-1551972873-b7e8754e8e26`} 
-          className="w-full h-full object-cover" 
-          alt={event.title} 
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
-        <button 
-          onClick={handleGetDirections}
-          className="absolute bottom-6 right-4 bg-white text-black px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 shadow-lg hover:bg-white/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-primary text-[20px]">directions</span> Get Directions
-        </button>
-      </div>
-
-      <div className="-mt-6 bg-background rounded-t-[24px] relative px-5 pt-8 pb-4 border-t border-white/5">
-        <div className="flex gap-2 mb-2">
-          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-            event.status === 'open' 
-              ? 'bg-green-500/20 text-green-500 border border-green-500/20'
-              : event.status === 'full'
-              ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20'
-              : 'bg-red-500/20 text-red-500 border border-red-500/20'
-          }`}>
-            {event.status === 'open' ? 'Open' : event.status === 'full' ? 'Full' : event.status}
+      <div className="w-full">
+        <div className="px-4 pt-16 pb-3 border-b border-white/5">
+        <div className="flex gap-1.5 mb-1.5 flex-wrap">
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              event.status === "open"
+                ? "bg-green-500/20 text-green-500 border border-green-500/20"
+                : event.status === "full"
+                ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/20"
+                : "bg-red-500/20 text-red-500 border border-red-500/20"
+            }`}
+          >
+            {event.status === "open"
+              ? t('events.open')
+              : event.status === "full"
+              ? t('events.full')
+              : event.status}
+          </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/20">
+            {event.sport}
           </span>
         </div>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-bold leading-tight flex-1">{event.title}</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-bold leading-tight flex-1">
+            {event.title}
+          </h1>
           {event.code && (
-            <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-4 py-2 ml-4">
-              <p className="text-xs text-slate-400 mb-1">Event Code</p>
-              <div className="flex items-center gap-2">
-                <code className="text-lg font-bold text-primary tracking-wider">{event.code}</code>
+            <div className="bg-primary/10 border-2 border-primary/30 rounded-lg px-2.5 py-1.5 ml-3">
+              <p className="text-[10px] text-slate-400 mb-0.5">{t('events.eventCode')}</p>
+              <div className="flex items-center gap-1.5">
+                <code className="text-sm font-bold text-primary tracking-wider">
+                  {event.code}
+                </code>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(event.code);
                     // You could add a toast notification here
                   }}
-                  className="p-1 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
+                  className="p-0.5 rounded bg-primary/20 hover:bg-primary/30 transition-colors"
                   title="Copy code"
                 >
-                  <span className="material-symbols-outlined text-sm">content_copy</span>
+                  <span className="material-symbols-outlined text-xs">
+                    content_copy
+                  </span>
                 </button>
               </div>
             </div>
           )}
         </div>
-        
-        <div className="space-y-4">
-          <div className="flex gap-4 items-start">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <span className="material-symbols-outlined">calendar_month</span>
+
+        <div className="space-y-2.5">
+          <div className="flex gap-3 items-start">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <span className="material-symbols-outlined text-base">calendar_month</span>
             </div>
             <div>
-              <p className="font-bold">{formatDate(event.date)}</p>
-              <p className="text-sm text-slate-400">{formatTimeRange(event.time, event.endTime)}</p>
+              <p className="font-bold text-sm">{formatDate(event.date)}</p>
+              <p className="text-xs text-slate-400">
+                {formatTimeRange(event.time, event.endTime)}
+              </p>
             </div>
           </div>
-          <div className="flex gap-4 items-start">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <span className="material-symbols-outlined">location_on</span>
+          <div className="flex gap-3 items-start">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <span className="material-symbols-outlined text-base">location_on</span>
             </div>
-            <div>
-              <p className="font-bold">{event.location}</p>
+            <div className="flex-1">
+              <p className="font-bold text-sm">{event.location}</p>
               {event.locationDetails && (
-                <p className="text-sm text-slate-400">{event.locationDetails}</p>
+                <p className="text-xs text-slate-400">
+                  {event.locationDetails}
+                </p>
               )}
             </div>
+            <button
+              onClick={handleGetDirections}
+              className="bg-white text-black px-2.5 py-1.5 rounded-lg font-bold text-[10px] flex items-center gap-1.5 shadow-md hover:bg-white/90 transition-colors shrink-0"
+            >
+              <span className="material-symbols-outlined text-primary text-base">
+                directions
+              </span>
+              {t('events.directions')}
+            </button>
           </div>
           {event.price && event.price > 0 && (
-            <div className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <span className="material-symbols-outlined">payments</span>
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <span className="material-symbols-outlined text-base">payments</span>
               </div>
               <div>
-                <p className="font-bold">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(event.price)}</p>
-                <p className="text-sm text-slate-400">Event fee</p>
+                <p className="font-bold text-sm">
+                  {new Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(event.price)}
+                </p>
+                <p className="text-xs text-slate-400">{t('events.eventFee')}</p>
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3 mt-6">
+        <div className="flex flex-wrap gap-2 mt-4">
           {event.price && event.price > 0 && (
-          <div className="bg-surface border border-white/5 rounded-lg px-3 py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-slate-400 text-[20px]">payments</span>
-              <span className="text-sm font-semibold text-slate-300">
-                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(event.price)}
+            <div className="bg-surface border border-white/5 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-slate-400 text-base">
+                payments
               </span>
-          </div>
+              <span className="text-xs font-semibold text-slate-300">
+                {new Intl.NumberFormat("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(event.price)}
+              </span>
+            </div>
           )}
-          <div className="bg-surface border border-white/5 rounded-lg px-3 py-2 flex items-center gap-2">
-            <span className="material-symbols-outlined text-slate-400 text-[20px]">leaderboard</span>
-            <span className="text-sm font-semibold text-slate-300">{event.skillLevel}</span>
-          </div>
+          {event.skillLevel && event.skillLevel !== "All" && (
+            <div className="bg-surface border border-white/5 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-slate-400 text-base">
+                leaderboard
+              </span>
+              <span className="text-xs font-semibold text-slate-300">
+                {t(`events.skillLevel.${event.skillLevel.toLowerCase()}`)}
+              </span>
+            </div>
+          )}
           {event.competitive && (
-          <div className="bg-gradient-to-br from-yellow-400 to-green-400 text-black rounded-lg px-3 py-2 flex items-center gap-2 font-bold shadow-lg shadow-green-500/20">
-            <span className="material-symbols-outlined text-[20px]">local_fire_department</span>
-              <span className="text-sm">Competitive</span>
-          </div>
+            <div className="bg-gradient-to-br from-yellow-400 to-green-400 text-black rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 font-bold shadow-lg shadow-green-500/20">
+              <span className="material-symbols-outlined text-base">
+                local_fire_department
+              </span>
+              <span className="text-xs">Competitive</span>
+            </div>
           )}
+          </div>
         </div>
 
-        <div className="h-px bg-white/5 w-full my-6"></div>
+        <div className="h-px bg-white/5 w-full my-4 mx-4"></div>
 
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold">Current Roster</h3>
-            <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-bold">
-              {event.currentPlayers}/{event.maxPlayers} Players
+        <div className="px-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-base font-bold">{t('events.currentRoster')}</h3>
+            <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-xs font-bold">
+              {event.currentPlayers}/{event.maxPlayers} {t('events.players')}
             </span>
           </div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
             {/* Show players from event.players array, not just loaded players state */}
             {event.players.length > 0 ? (
               event.players.map((playerId) => {
-                const player = players.find(p => p.id === playerId);
+                const player = players.find((p) => p.id === playerId);
                 const isOrganizerPlayer = playerId === event.organizerId;
                 // If player profile not loaded yet, show placeholder
                 if (!player) {
                   return (
-                    <div key={playerId} className="flex flex-col items-center gap-2 min-w-[60px]">
+                    <div
+                      key={playerId}
+                      className="flex flex-col items-center gap-1.5 min-w-[50px]"
+                    >
                       <div className="relative">
-                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-400">person</span>
+                        <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-400 text-base">
+                            person
+                          </span>
                         </div>
                         {isOrganizerPlayer && (
-                          <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 rounded border border-white">
-                            HOST
+                          <div className="absolute -bottom-0.5 -right-0.5 bg-yellow-400 text-black text-[9px] font-bold px-1 rounded border border-white">
+                            {t('events.host')}
                           </div>
                         )}
                       </div>
-                      <span className="text-xs font-medium text-slate-400 text-center">Loading...</span>
+                      <span className="text-[10px] font-medium text-slate-400 text-center">
+                        {t('common.loading')}
+                      </span>
                     </div>
                   );
                 }
                 return (
-                  <div key={player.id} className="flex flex-col items-center gap-2 min-w-[60px]">
+                  <div
+                    key={player.id}
+                    className="flex flex-col items-center gap-1.5 min-w-[50px]"
+                  >
                     <div className="relative">
-                      <Avatar 
-                        src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`} 
-                        size="w-16 h-16" 
-                        className={isOrganizerPlayer ? 'border-yellow-400' : ''} 
+                      <Avatar
+                        src={
+                          player.avatar ||
+                          `https://i.pravatar.cc/150?u=${player.id}`
+                        }
+                        size="w-12 h-12"
+                        className={isOrganizerPlayer ? "border-yellow-400" : ""}
                       />
                       {isOrganizerPlayer && (
-                        <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[10px] font-bold px-1.5 rounded border border-white">
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-yellow-400 text-black text-[9px] font-bold px-1 rounded border border-white">
                           HOST
                         </div>
                       )}
                     </div>
-                    <span className="text-xs font-medium text-slate-300 text-center">
+                    <span className="text-[10px] font-medium text-slate-300 text-center">
                       {player.firstName} {player.lastName}
                     </span>
                   </div>
                 );
               })
             ) : (
-              <div className="text-center text-slate-400 text-sm py-4 w-full">
+              <div className="text-center text-slate-400 text-xs py-3 w-full">
                 No players yet
               </div>
             )}
             {!isFull && (
-            <div className="flex flex-col items-center gap-2 min-w-[60px]">
-              <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-600 bg-white/5 flex items-center justify-center text-slate-500">
-                <span className="material-symbols-outlined">person_add</span>
+              <div className="flex flex-col items-center gap-1.5 min-w-[50px]">
+                <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-600 bg-white/5 flex items-center justify-center text-slate-500">
+                  <span className="material-symbols-outlined text-base">person_add</span>
+                </div>
+                <span className="text-[10px] font-medium text-slate-500">{t('events.open')}</span>
               </div>
-              <span className="text-xs font-medium text-slate-500">Open</span>
-            </div>
             )}
           </div>
-          
-          <div className="flex gap-3 mt-6">
-            <button 
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: event.title,
-                    text: `Join me for ${event.sport} on ${formatDate(event.date)}!`,
-                    url: window.location.href,
-                  });
-                }
-              }}
-              className="flex-1 bg-surface border border-white/10 h-12 rounded-lg font-bold text-primary flex items-center justify-center gap-2 hover:bg-white/5 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">ios_share</span> Invite Friends
-            </button>
-            {!isOrganizer && (
-              <button 
-                onClick={handleChat}
-                className="flex-1 bg-primary/10 border border-primary/20 h-12 rounded-lg font-bold text-primary flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors"
+
+          <div className="flex gap-2 mt-4">
+            {!isEventPast() && (
+              <button
+                onClick={() => {
+                  if (isOrganizer) {
+                    setShowInviteModal(true);
+                  } else if (navigator.share) {
+                    navigator.share({
+                      title: event.title,
+                      text: t('events.shareEventText').replace('{sport}', event.sport).replace('{date}', formatDate(event.date)) + '!',
+                      url: window.location.href,
+                    });
+                  }
+                }}
+                className="flex-1 bg-surface border border-white/10 h-10 rounded-lg font-bold text-sm text-primary flex items-center justify-center gap-1.5 hover:bg-white/5 transition-colors"
               >
-              <span className="material-symbols-outlined text-[20px]">chat</span> Team Chat
-            </button>
+                <span className="material-symbols-outlined text-base">
+                  ios_share
+                </span>{" "}
+                {t('events.inviteFriends')}
+              </button>
+            )}
+            {!isOrganizer && (
+              <button
+                onClick={handleChat}
+                className="flex-1 bg-primary/10 border border-primary/20 h-10 rounded-lg font-bold text-sm text-primary flex items-center justify-center gap-1.5 hover:bg-primary/20 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">
+                  chat
+                </span>{" "}
+                Team Chat
+              </button>
             )}
           </div>
         </div>
 
         {event.description && (
-        <div className="mt-8 mb-4">
-          <h3 className="text-lg font-bold mb-2">About the Game</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">{event.description}</p>
-        </div>
+          <div className="mt-4 mb-2 px-4">
+            <h3 className="text-base font-bold mb-1.5">About the Game</h3>
+            <p className="text-slate-400 text-xs leading-relaxed">
+              {event.description}
+            </p>
+          </div>
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-surface/90 backdrop-blur-md border-t border-white/10 z-30 max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-2">
+      <div className="fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-white/10 z-30">
+        <div className="w-full p-3">
+        <div className="flex items-center justify-between gap-3 mb-1.5">
           {event.price && event.price > 0 && !isOrganizer && (
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total</span>
-              <span className="text-xl font-bold">
-                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(event.price)}
+            <div className="flex flex-col">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                Total
               </span>
-          </div>
+              <span className="text-lg font-bold">
+                {new Intl.NumberFormat("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                }).format(event.price)}
+              </span>
+            </div>
           )}
           {!isOrganizer ? (
-            <button 
-              onClick={isJoined ? handleLeave : handleJoin}
-              disabled={isJoining || (isFull && !isApproved) || hasPendingRequest || !user}
-              className={`flex-1 h-14 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
-                isJoined
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30'
+            hasInvitedRequest ? (
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={handleJoin}
+                  disabled={isJoining || !user || isEventPast()}
+                  className="flex-1 h-11 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-green-500 hover:bg-green-600 text-white shadow-green-500/20 disabled:opacity-50"
+                >
+                  {isJoining ? t('common.loading') : t('events.agreeToJoin')}
+                </button>
+                <button
+                  onClick={handleDenyInvitation}
+                  disabled={isJoining || !user}
+                  className="flex-1 h-11 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30 disabled:opacity-50"
+                >
+                  {isJoining ? t('common.loading') : t('events.deny')}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={isJoined ? handleLeave : handleJoin}
+                disabled={
+                  isJoining ||
+                  (isFull && !isApproved) ||
+                  hasPendingRequest ||
+                  !user ||
+                  isEventPast()
+                }
+                className={`flex-1 h-11 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] ${
+                  isJoined
+                    ? "bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30"
+                    : isEventPast()
+                    ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
+                    : hasPendingRequest
+                    ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 cursor-not-allowed"
+                    : isApproved
+                    ? "bg-green-500/20 text-green-400 border border-green-500/20 cursor-not-allowed"
+                    : isFull
+                    ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
+                    : "bg-primary hover:bg-primary-hover text-white shadow-primary/20"
+                }`}
+              >
+                {isJoining
+                  ? t('common.loading')
+                  : isJoined
+                  ? t('events.leaveEvent')
+                  : isEventPast()
+                  ? t('events.eventEnded')
                   : hasPendingRequest
-                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 cursor-not-allowed'
+                  ? t('events.requested')
                   : isApproved
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/20 cursor-not-allowed'
+                  ? t('events.approved')
                   : isFull
-                  ? 'bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed'
-                  : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20'
-              }`}
-            >
-              {isJoining ? 'Loading...' : isJoined ? 'Leave Event' : hasPendingRequest ? 'Requested' : isApproved ? 'Approved' : isFull ? 'Event Full' : 'Request to Join'}
-            </button>
+                  ? t('events.eventFull')
+                  : t('events.requestToJoin')}
+              </button>
+            )
           ) : (
-            <button 
+            <button
               onClick={() => navigate(`/event/manage/${event.id}`)}
-              className="flex-1 h-14 bg-primary hover:bg-primary-hover rounded-xl font-bold text-lg shadow-lg shadow-primary/20 transition-all active:scale-[0.98] text-white"
+              className="flex-1 h-11 bg-primary hover:bg-primary-hover rounded-lg font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-[0.98] text-white"
             >
-              Manage Event
+              {t('events.manageEvent')}
             </button>
           )}
         </div>
         {!isFull && !isOrganizer && (
-        <p className="text-center text-[10px] text-slate-500">Your spot is held for 10 mins after request</p>
+          <p className="text-center text-[9px] text-slate-500">
+            Your spot is held for 10 mins after request
+          </p>
         )}
+        </div>
       </div>
+
+      {/* Invite Friends Modal */}
+      {showInviteModal && event && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl border border-white/10 w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="text-xl font-bold">Invite Friends</h2>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {friends.length === 0 ? (
+                <div className="text-center text-slate-400 py-8">
+                  <p>No friends to invite</p>
+                  <p className="text-xs mt-2">{t('events.addFriendsHint')}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {friends
+                    .filter(friend => !event.players.includes(friend.id))
+                    .map((friend) => (
+                      <div
+                        key={friend.id}
+                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            src={friend.avatar || `https://i.pravatar.cc/150?u=${friend.id}`}
+                            size="w-10 h-10"
+                          />
+                          <div>
+                            <p className="font-bold text-sm">{friend.firstName} {friend.lastName}</p>
+                            <p className="text-xs text-slate-400">{friend.userId}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleInviteFriend(friend.id)}
+                          disabled={invitingFriendId === friend.id || invitedFriendIds.has(friend.id)}
+                          className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors disabled:cursor-not-allowed ${
+                            invitedFriendIds.has(friend.id)
+                              ? 'bg-green-500/10 border border-green-500/30 text-green-400 cursor-not-allowed'
+                              : invitingFriendId === friend.id
+                              ? 'bg-primary/50 text-white'
+                              : 'bg-primary hover:bg-primary-hover text-white'
+                          }`}
+                        >
+                          {invitingFriendId === friend.id 
+                            ? 'Sending...' 
+                            : invitedFriendIds.has(friend.id)
+                            ? 'Invited'
+                            : 'Invite'}
+                        </button>
+                      </div>
+                    ))}
+                  {friends.filter(friend => !event.players.includes(friend.id)).length === 0 && (
+                    <div className="text-center text-slate-400 py-4">
+                      <p>{t('events.allFriendsInEvent')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1613,43 +2675,80 @@ export const EditEvent: React.FC = () => {
   const navigate = useNavigate();
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
-      <Header title="Edit Event" rightAction={<button className="text-primary font-bold">Save</button>} />
-      
-      <main className="flex-1 p-4 space-y-6">
-        <div className="relative h-40 rounded-xl overflow-hidden group">
-          <img src="https://images.unsplash.com/photo-1546519638-68e109498ffc" className="w-full h-full object-cover" alt="banner" />
+      <Header
+        title="Edit Event"
+        rightAction={<button className="text-primary font-bold lg:text-sm">Save</button>}
+      />
+
+      <main className="flex-1 p-4 space-y-6 lg:p-6 lg:space-y-4">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+        <div className="relative h-40 rounded-xl overflow-hidden group lg:h-32 lg:rounded-lg">
+          <img
+            src="https://images.unsplash.com/photo-1546519638-68e109498ffc"
+            className="w-full h-full object-cover"
+            alt="banner"
+          />
           <div className="absolute inset-0 bg-black/40"></div>
-          <div className="absolute bottom-4 left-4">
-            <span className="bg-gradient-to-r from-yellow-400 to-green-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Basketball</span>
-            <h2 className="text-2xl font-bold mt-1">Sunday Morning Hoops</h2>
-            <p className="text-sm opacity-90">Oct 24 • 10:00 AM</p>
+          <div className="absolute bottom-4 left-4 lg:bottom-3 lg:left-3">
+            <span className="bg-gradient-to-r from-yellow-400 to-green-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase lg:text-[9px] lg:px-1.5">
+              Basketball
+            </span>
+            <h2 className="text-2xl font-bold mt-1 lg:text-xl lg:mt-0.5">Sunday Morning Hoops</h2>
+            <p className="text-sm opacity-90 lg:text-xs">Oct 24 • 10:00 AM</p>
           </div>
-          <button className="absolute top-3 right-3 p-2 bg-black/40 backdrop-blur rounded-full"><span className="material-symbols-outlined text-sm">edit</span></button>
+          <button className="absolute top-3 right-3 p-2 bg-black/40 backdrop-blur rounded-full lg:top-2 lg:right-2 lg:p-1.5">
+            <span className="material-symbols-outlined text-sm lg:text-xs">edit</span>
+          </button>
         </div>
 
         <div>
-          <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">The Basics</h3>
-          <div className="space-y-4">
+          <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 lg:text-[11px] lg:mb-1.5">
+            The Basics
+          </h3>
+          <div className="space-y-4 lg:space-y-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">EVENT NAME</label>
+              <label className="text-xs text-slate-400 mb-1 block lg:text-[11px] lg:mb-0.5">
+                {t('events.eventNameLabel')}
+              </label>
               <div className="relative">
-                <input type="text" defaultValue="Sunday Morning Hoops" className="w-full bg-surface border border-white/10 rounded-lg h-12 px-4 focus:border-primary outline-none" />
-                <span className="absolute right-4 top-3 text-slate-400 material-symbols-outlined text-[20px]">edit</span>
+                <input
+                  type="text"
+                  defaultValue="Sunday Morning Hoops"
+                  className="w-full bg-surface border border-white/10 rounded-lg h-12 px-4 focus:border-primary outline-none lg:h-10 lg:px-3 lg:text-sm lg:rounded"
+                />
+                <span className="absolute right-4 top-3 text-slate-400 material-symbols-outlined text-[20px] lg:right-3 lg:top-2.5 lg:text-base">
+                  edit
+                </span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-2 block">SPORT TYPE</label>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar">
-                <div className="w-20 h-20 bg-surface rounded-xl border-2 border-primary flex flex-col items-center justify-center text-primary relative overflow-hidden">
+              <label className="text-xs text-slate-400 mb-2 block lg:text-[11px] lg:mb-1.5">
+                SPORT TYPE
+              </label>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar lg:gap-2">
+                <div className="w-20 h-20 bg-surface rounded-xl border-2 border-primary flex flex-col items-center justify-center text-primary relative overflow-hidden lg:w-16 lg:h-16 lg:rounded-lg">
                   <div className="absolute inset-0 bg-primary/10"></div>
-                  <span className="material-symbols-outlined text-3xl mb-1">sports_basketball</span>
-                  <span className="text-xs font-bold">Hoops</span>
-                  <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(57,255,20,0.6)]"></div>
+                  <span className="material-symbols-outlined text-3xl mb-1 lg:text-2xl lg:mb-0.5">
+                    sports_basketball
+                  </span>
+                  <span className="text-xs font-bold lg:text-[11px]">Hoops</span>
+                  <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(57,255,20,0.6)] lg:w-1.5 lg:h-1.5 lg:top-0.5 lg:right-0.5"></div>
                 </div>
-                {['Soccer', 'Tennis', 'Volleyball', 'Run'].map((s, i) => (
-                  <div key={i} className="w-20 h-20 bg-surface rounded-xl border border-white/10 flex flex-col items-center justify-center text-slate-400 hover:border-white/30 transition-colors">
-                    <span className="material-symbols-outlined text-3xl mb-1">{i===0?'sports_soccer':i===1?'sports_tennis':i===2?'sports_volleyball':'directions_run'}</span>
-                    <span className="text-xs font-medium">{s}</span>
+                {["Soccer", "Tennis", "Volleyball", "Run"].map((s, i) => (
+                  <div
+                    key={i}
+                    className="w-20 h-20 bg-surface rounded-xl border border-white/10 flex flex-col items-center justify-center text-slate-400 hover:border-white/30 transition-colors lg:w-16 lg:h-16 lg:rounded-lg"
+                  >
+                    <span className="material-symbols-outlined text-3xl mb-1 lg:text-2xl lg:mb-0.5">
+                      {i === 0
+                        ? "sports_soccer"
+                        : i === 1
+                        ? "sports_tennis"
+                        : i === 2
+                        ? "sports_volleyball"
+                        : "directions_run"}
+                    </span>
+                    <span className="text-xs font-medium lg:text-[11px]">{s}</span>
                   </div>
                 ))}
               </div>
@@ -1658,58 +2757,96 @@ export const EditEvent: React.FC = () => {
         </div>
 
         <div>
-          <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Logistics</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 lg:text-[11px] lg:mb-1.5">
+            {t('events.logistics')}
+          </h3>
+          <div className="grid grid-cols-2 gap-4 mb-4 lg:gap-3 lg:mb-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">DATE</label>
-              <div className="bg-surface border border-white/10 rounded-lg h-12 flex items-center px-4 justify-between">
+              <label className="text-xs text-slate-400 mb-1 block lg:text-[11px] lg:mb-0.5">{t('events.dateLabel')}</label>
+              <div className="bg-surface border border-white/10 rounded-lg h-12 flex items-center px-4 justify-between lg:h-10 lg:px-3 lg:rounded lg:text-sm">
                 <span>Oct 24, 2023</span>
-                <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
+                <span className="material-symbols-outlined text-primary text-[20px] lg:text-base">
+                  calendar_today
+                </span>
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">TIME</label>
-              <div className="bg-surface border border-white/10 rounded-lg h-12 flex items-center px-4 justify-between">
+              <label className="text-xs text-slate-400 mb-1 block lg:text-[11px] lg:mb-0.5">{t('events.timeLabel')}</label>
+              <div className="bg-surface border border-white/10 rounded-lg h-12 flex items-center px-4 justify-between lg:h-10 lg:px-3 lg:rounded lg:text-sm">
                 <span>10:00 AM</span>
-                <span className="material-symbols-outlined text-primary text-[20px]">schedule</span>
+                <span className="material-symbols-outlined text-primary text-[20px] lg:text-base">
+                  schedule
+                </span>
               </div>
             </div>
           </div>
-          <div className="relative rounded-xl overflow-hidden border border-white/10">
-            <div className="flex items-center gap-3 p-3 bg-surface border-b border-white/5">
-              <span className="material-symbols-outlined text-primary">location_on</span>
-              <span className="flex-1">Central Park Courts</span>
-              <span className="material-symbols-outlined text-slate-400">search</span>
+          <div className="relative rounded-xl overflow-hidden border border-white/10 lg:rounded-lg">
+            <div className="flex items-center gap-3 p-3 bg-surface border-b border-white/5 lg:gap-2 lg:p-2">
+              <span className="material-symbols-outlined text-primary lg:text-base">
+                location_on
+              </span>
+              <span className="flex-1 lg:text-sm">Central Park Courts</span>
+              <span className="material-symbols-outlined text-slate-400 lg:text-base">
+                search
+              </span>
             </div>
-            <div className="h-32 relative">
-              <img src="https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83" className="w-full h-full object-cover opacity-60" alt="map" />
+            <div className="h-32 relative lg:h-24">
+              <img
+                src="https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83"
+                className="w-full h-full object-cover opacity-60"
+                alt="map"
+              />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center animate-pulse ring-4 ring-primary/30 text-white"><span className="material-symbols-outlined text-sm">location_on</span></div>
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center animate-pulse ring-4 ring-primary/30 text-white">
+                  <span className="material-symbols-outlined text-sm">
+                    location_on
+                  </span>
+                </div>
               </div>
-              <div className="absolute bottom-2 right-2 bg-surface/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded">Change Location</div>
+              <div className="absolute bottom-2 right-2 bg-surface/90 backdrop-blur text-[10px] font-bold px-2 py-1 rounded">
+                {t('events.changeLocation')}
+              </div>
             </div>
           </div>
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-xs font-bold text-slate-500 uppercase">Roster Limit</h3>
-            <span className="text-primary font-bold">10 Spots</span>
+          <div className="flex justify-between items-center mb-2 lg:mb-1.5">
+            <h3 className="text-xs font-bold text-slate-500 uppercase lg:text-[11px]">
+              Roster Limit
+            </h3>
+            <span className="text-primary font-bold lg:text-sm">10 Spots</span>
           </div>
-          <div className="bg-surface border border-white/10 rounded-xl p-5">
-            <div className="flex justify-between text-xs text-slate-400 font-bold mb-4"><span>Min: 2</span><span>Max: 50</span></div>
-            <div className="relative h-2 bg-white/10 rounded-full mb-3">
-              <div className="absolute left-0 top-0 h-full w-[20%] bg-gradient-to-r from-yellow-400 to-green-400 rounded-full"></div>
-              <div className="absolute left-[20%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white border-2 border-primary rounded-full shadow cursor-grab flex items-center justify-center"><div className="w-2 h-2 bg-primary rounded-full"></div></div>
+          <div className="bg-surface border border-white/10 rounded-xl p-5 lg:rounded-lg lg:p-3">
+            <div className="flex justify-between text-xs text-slate-400 font-bold mb-4 lg:text-[11px] lg:mb-3">
+              <span>Min: 2</span>
+              <span>Max: 50</span>
             </div>
-            <p className="text-xs text-slate-400 flex items-center gap-1"><span className="material-symbols-outlined text-sm">info</span> Current signups: 4 players</p>
+            <div className="relative h-2 bg-white/10 rounded-full mb-3 lg:mb-2">
+              <div className="absolute left-0 top-0 h-full w-[20%] bg-gradient-to-r from-yellow-400 to-green-400 rounded-full"></div>
+              <div className="absolute left-[20%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white border-2 border-primary rounded-full shadow cursor-grab flex items-center justify-center lg:w-5 lg:h-5">
+                <div className="w-2 h-2 bg-primary rounded-full lg:w-1.5 lg:h-1.5"></div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 flex items-center gap-1 lg:text-[11px]">
+              <span className="material-symbols-outlined text-sm lg:text-xs">info</span>{" "}
+              Current signups: 4 players
+            </p>
           </div>
         </div>
 
-        <div className="pt-4 flex flex-col gap-3">
-          <button className="w-full h-12 bg-primary rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20"><span className="material-symbols-outlined">save</span> Save Changes</button>
-          <button className="w-full h-12 bg-transparent border border-white/10 rounded-xl font-bold text-slate-300">Cancel</button>
-          <button className="w-full h-12 flex items-center justify-center gap-2 text-danger font-bold text-sm hover:bg-danger/5 rounded-xl"><span className="material-symbols-outlined">delete</span> Delete Event</button>
+        <div className="pt-4 flex flex-col gap-3 lg:pt-3 lg:gap-2">
+          <button className="w-full h-12 bg-primary rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 lg:h-10 lg:text-sm lg:rounded-lg">
+            <span className="material-symbols-outlined lg:text-base">save</span> Save Changes
+          </button>
+          <button className="w-full h-12 bg-transparent border border-white/10 rounded-xl font-bold text-slate-300 lg:h-10 lg:text-sm lg:rounded-lg">
+            Cancel
+          </button>
+          <button className="w-full h-12 flex items-center justify-center gap-2 text-danger font-bold text-sm hover:bg-danger/5 rounded-xl lg:h-10 lg:text-xs lg:rounded-lg">
+            <span className="material-symbols-outlined lg:text-base">delete</span> Delete
+            Event
+          </button>
+        </div>
         </div>
       </main>
     </div>

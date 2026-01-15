@@ -3,66 +3,96 @@ import { useNavigate } from 'react-router-dom';
 import { SignIn, SignUp } from '@clerk/clerk-react';
 import { Header } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { validators } from '../utils/validation';
 
 export const OnboardingLanding: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
-    <div className="relative flex flex-col h-full min-h-screen">
-      <div className="absolute inset-0 z-0 h-[65%] w-full">
+    <div className="relative flex flex-col w-full h-screen overflow-hidden">
+      <div className="absolute inset-0 z-0 h-[60%] w-full">
         <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1546519638-68e109498ffc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1780&q=80')" }}></div>
         <div className="absolute inset-0 bg-hero-gradient"></div>
       </div>
 
-      <header className="relative z-20 flex items-center justify-between px-6 py-6 pt-12">
-        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
-          <span className="material-symbols-outlined text-[#39FF14] text-[20px]">sports_basketball</span>
-          <span className="text-white font-bold text-sm tracking-wide">TeamUp</span>
+      <header className="relative z-20 flex items-center justify-between px-4 py-2 pt-4 lg:px-5 lg:py-2 lg:pt-3">
+        <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10">
+          <span className="material-symbols-outlined text-[#39FF14] text-base">sports_basketball</span>
+          <span className="text-white font-bold text-[10px] tracking-wide">TeamUp</span>
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-col flex-1 justify-end pb-8 px-6">
-        <div className="mb-6 w-full animate-fade-in-up">
-          <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl flex items-center justify-between border-l-4 border-l-[#39FF14]">
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-300 uppercase tracking-wider font-medium">Active Players</span>
-              <span className="text-2xl font-bold text-white">12,405<span className="text-[#39FF14] text-sm align-top">+</span></span>
-            </div>
-            <div className="flex -space-x-3">
-              <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="User" className="w-10 h-10 rounded-full border-2 border-background object-cover" />
-              <img src="https://i.pravatar.cc/150?u=a042581f4e29026024d" alt="User" className="w-10 h-10 rounded-full border-2 border-background object-cover" />
-              <div className="w-10 h-10 rounded-full border-2 border-background bg-primary flex items-center justify-center text-xs font-bold text-white">+2k</div>
+      <main className="relative z-10 flex flex-col flex-1 justify-center pb-4 px-4 lg:pb-6 lg:px-5">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+          {/* Stats Card */}
+          <div className="mb-3 w-full animate-fade-in-up lg:mb-4">
+            <div className="bg-white/10 backdrop-blur-xl p-2 rounded-lg flex items-center justify-between border border-white/20 shadow-md lg:p-2.5 lg:rounded-xl">
+              <div className="flex flex-col">
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold mb-0.5 lg:text-[10px]">{t('onboarding.activePlayers')}</span>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-xl font-extrabold text-white lg:text-2xl">12,405</span>
+                  <span className="text-[#39FF14] text-sm font-bold lg:text-base">+</span>
+                </div>
+              </div>
+              <div className="flex -space-x-2">
+                <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="User" className="w-8 h-8 rounded-full border-2 border-background object-cover shadow-sm lg:w-10 lg:h-10" />
+                <img src="https://i.pravatar.cc/150?u=a042581f4e29026024d" alt="User" className="w-8 h-8 rounded-full border-2 border-background object-cover shadow-sm lg:w-10 lg:h-10" />
+                <div className="w-8 h-8 rounded-full border-2 border-background bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-[9px] font-bold text-white shadow-sm lg:w-10 lg:h-10 lg:text-[10px]">+2k</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-col gap-2 mb-8">
-          <div className="inline-flex self-start px-3 py-1 rounded-full bg-gradient-to-r from-[#FFD700]/20 to-[#39FF14]/20 border border-[#39FF14]/30 backdrop-blur-sm mb-2">
-            <span className="text-xs font-bold text-[#39FF14] flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">bolt</span> 
-              Pro-Athlete Edition
+          {/* Hero Content */}
+          <div className="flex flex-col gap-2 mb-4 lg:mb-5 lg:gap-2.5">
+            <div className="inline-flex self-start px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FFD700]/30 via-[#39FF14]/30 to-[#FFD700]/30 border border-[#39FF14]/40 backdrop-blur-md shadow-sm mb-1.5 lg:px-3 lg:py-1 lg:mb-2">
+              <span className="text-[9px] font-bold text-[#39FF14] flex items-center gap-1 lg:text-[10px]">
+              <span className="material-symbols-outlined text-xs lg:text-sm">bolt</span> 
+              {t('onboarding.proAthleteEdition')}
             </span>
           </div>
-          <h1 className="text-4xl font-bold text-white leading-[1.1] tracking-tight">
-            Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#39FF14]">Squad.</span><br/>
-            Dominate the Game.
+          
+          <h1 className="text-2xl font-extrabold text-white leading-[1.1] tracking-tight lg:text-4xl lg:leading-[1.1]">
+            {t('onboarding.findYourSquad')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#39FF14] to-[#FFD700]">{t('onboarding.squad')}</span><br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-[#0d7cf2]">{t('onboarding.dominate')}</span> {t('onboarding.theGame')}
           </h1>
-          <p className="text-slate-400 text-base leading-relaxed mt-2">
-            Connect with local athletes, join pickup games instantly, and track your performance stats.
+          
+          <p className="text-xs text-slate-300 leading-snug max-w-lg lg:text-sm lg:leading-relaxed lg:max-w-xl">
+            {t('onboarding.description')}
           </p>
+
+          {/* Feature Pills */}
+          <div className="flex flex-wrap gap-1 mt-2 lg:gap-1.5 lg:mt-2.5">
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10 lg:px-2.5 lg:py-1">
+              <span className="material-symbols-outlined text-[#39FF14] text-xs lg:text-sm">location_on</span>
+              <span className="text-[9px] text-slate-300 font-medium lg:text-[10px]">{t('onboarding.localGames')}</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10 lg:px-2.5 lg:py-1">
+              <span className="material-symbols-outlined text-[#39FF14] text-xs lg:text-sm">groups</span>
+              <span className="text-[9px] text-slate-300 font-medium lg:text-[10px]">{t('onboarding.findPlayers')}</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-white/5 backdrop-blur-sm rounded-full border border-white/10 lg:px-2.5 lg:py-1">
+              <span className="material-symbols-outlined text-[#39FF14] text-xs lg:text-sm">analytics</span>
+              <span className="text-[9px] text-slate-300 font-medium lg:text-[10px]">{t('onboarding.trackStats')}</span>
+            </div>
+          </div>
+        </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <button 
-            onClick={() => navigate('/create-profile')}
-            className="w-full py-4 bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all rounded-xl shadow-lg shadow-primary/20 text-white font-bold text-lg flex items-center justify-center gap-2 group"
-          >
-            Get Started
-            <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </button>
-          <div className="text-center text-sm text-slate-400">
-            Already have an account? <span className="text-white font-medium cursor-pointer hover:underline" onClick={() => navigate('/login')}>Log In</span>
+        {/* CTA Section */}
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+          <div className="flex flex-col gap-2 lg:gap-2.5">
+            <button 
+              onClick={() => navigate('/create-profile')}
+              className="w-full py-2.5 bg-gradient-to-r from-primary via-blue-600 to-primary hover:from-primary-hover hover:via-blue-700 hover:to-primary-hover active:scale-[0.98] transition-all rounded-lg shadow-lg shadow-primary/30 text-white font-bold text-sm flex items-center justify-center gap-1.5 group lg:py-3 lg:text-base lg:rounded-xl"
+            >
+              <span>{t('onboarding.getStartedFree')}</span>
+              <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform text-base lg:text-lg">arrow_forward</span>
+            </button>
+            <div className="text-center text-[10px] text-slate-400 lg:text-xs">
+              {t('onboarding.alreadyHaveAccount')} <span className="text-white font-semibold cursor-pointer hover:text-[#39FF14] transition-colors underline underline-offset-1" onClick={() => navigate('/login')}>{t('onboarding.logIn')}</span>
+            </div>
           </div>
         </div>
       </main>
@@ -80,49 +110,51 @@ export const AuthSelection: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/80 to-background"></div>
       </div>
 
-      <div className="relative z-10 flex flex-col flex-1 px-6 pb-8 pt-20">
-         <div className="flex-1 flex flex-col justify-center items-start">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-2xl shadow-primary/30 mb-6 border border-white/10">
-               <span className="material-symbols-outlined text-3xl text-white">sports_score</span>
+      <div className="relative z-10 flex flex-col flex-1 px-6 pb-8 pt-20 lg:px-8 lg:pb-6 lg:pt-12">
+        <div className="lg:max-w-md lg:mx-auto lg:w-full">
+         <div className="flex-1 flex flex-col justify-center items-start lg:items-center lg:text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-2xl shadow-primary/30 mb-6 border border-white/10 lg:w-14 lg:h-14 lg:rounded-xl lg:mb-4">
+               <span className="material-symbols-outlined text-3xl text-white lg:text-2xl">sports_score</span>
             </div>
-            <h1 className="text-5xl font-extrabold text-white mb-4 tracking-tight leading-[1.1]">
+            <h1 className="text-5xl font-extrabold text-white mb-4 tracking-tight leading-[1.1] lg:text-4xl lg:mb-3">
               Team<span className="text-primary">Up</span>
             </h1>
-            <p className="text-xl text-slate-300 font-medium max-w-[80%]">
+            <p className="text-xl text-slate-300 font-medium max-w-[80%] lg:text-lg lg:max-w-full">
               Join the community. <br/>Find your game.
             </p>
          </div>
 
-         <div className="flex flex-col gap-4 animate-fade-in-up">
+         <div className="flex flex-col gap-4 animate-fade-in-up lg:gap-3">
             <button 
               onClick={() => navigate('/create-profile')}
-              className="w-full py-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2 lg:py-3 lg:text-base lg:rounded-lg"
             >
               Sign Up Free
             </button>
             
             <button 
               onClick={() => navigate('/login')}
-              className="w-full py-4 rounded-xl bg-surface border border-white/10 hover:bg-white/5 text-white text-lg font-bold transition-all active:scale-[0.98]"
+              className="w-full py-4 rounded-xl bg-surface border border-white/10 hover:bg-white/5 text-white text-lg font-bold transition-all active:scale-[0.98] lg:py-3 lg:text-base lg:rounded-lg"
             >
               Log In
             </button>
             
-            <div className="mt-4 flex items-center gap-4 justify-center">
+            <div className="mt-4 flex items-center gap-4 justify-center lg:mt-3 lg:gap-3">
                  <div className="h-px bg-white/10 w-full"></div>
-                 <span className="text-xs text-slate-500 font-bold uppercase whitespace-nowrap">Or continue with</span>
+                 <span className="text-xs text-slate-500 font-bold uppercase whitespace-nowrap lg:text-[11px]">Or continue with</span>
                  <div className="h-px bg-white/10 w-full"></div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                <button className="h-12 rounded-xl bg-surface border border-white/5 hover:bg-white/5 flex items-center justify-center transition-colors">
-                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+            <div className="grid grid-cols-2 gap-4 lg:gap-3">
+                <button className="h-12 rounded-xl bg-surface border border-white/5 hover:bg-white/5 flex items-center justify-center transition-colors lg:h-10 lg:rounded-lg">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 lg:w-4 lg:h-4" alt="Google" />
                 </button>
-                <button className="h-12 rounded-xl bg-surface border border-white/5 hover:bg-white/5 flex items-center justify-center transition-colors text-white">
-                    <span className="material-symbols-outlined text-[24px]">apple</span>
+                <button className="h-12 rounded-xl bg-surface border border-white/5 hover:bg-white/5 flex items-center justify-center transition-colors text-white lg:h-10 lg:rounded-lg">
+                    <span className="material-symbols-outlined text-[24px] lg:text-xl">apple</span>
                 </button>
             </div>
          </div>
+        </div>
       </div>
     </div>
   );
@@ -353,19 +385,20 @@ export const SetLocation: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
       <Header title="Step 2 of 4" />
-      <main className="flex-1 flex flex-col px-5 pb-32">
-        <div className="flex flex-col gap-2 pt-4 pb-6">
-          <h1 className="text-3xl font-bold leading-tight">Where do you play?</h1>
-          <p className="text-slate-400 text-base">Set your home base to find teams, tournaments, and matches near you.</p>
+      <main className="flex-1 flex flex-col px-5 pb-32 lg:px-6 lg:pb-6">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+        <div className="flex flex-col gap-2 pt-4 pb-6 lg:pt-3 lg:pb-4 lg:gap-1.5">
+          <h1 className="text-3xl font-bold leading-tight lg:text-2xl">Where do you play?</h1>
+          <p className="text-slate-400 text-base lg:text-sm">Set your home base to find teams, tournaments, and matches near you.</p>
         </div>
 
         {/* City Selector */}
-        <div className="mb-6">
-          <label className="text-sm font-medium text-slate-400 mb-2 block">Chọn thành phố</label>
+        <div className="mb-6 lg:mb-4">
+          <label className="text-sm font-medium text-slate-400 mb-2 block lg:text-xs lg:mb-1.5">Chọn thành phố</label>
           <select
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
-            className="w-full bg-surface rounded-xl px-4 h-14 outline-none border border-white/10 focus:border-primary transition-colors text-white"
+            className="w-full bg-surface rounded-xl px-4 h-14 outline-none border border-white/10 focus:border-primary transition-colors text-white lg:h-10 lg:px-3 lg:text-sm lg:rounded-lg"
           >
             {vietnamCities.map((city) => (
               <option key={city.name} value={city.name}>
@@ -374,11 +407,14 @@ export const SetLocation: React.FC = () => {
             ))}
           </select>
         </div>
+        </div>
       </main>
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent z-30 max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
-        <button onClick={handleConfirm} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent z-30 max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto lg:relative lg:p-4 lg:pt-4">
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
+        <button onClick={handleConfirm} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all lg:h-10 lg:text-base lg:rounded-lg">
           Confirm Location
         </button>
+        </div>
       </div>
     </div>
   );

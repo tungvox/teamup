@@ -1,13 +1,26 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar, Badge } from "../components/Layout";
 import { EventsMapView } from "../components/EventsMapView";
 import { useAuth } from "../context/AuthContext";
 import { useEvents } from "../context/EventContext";
 import { useMessages } from "../context/MessageContext";
+import { useLanguage } from "../context/LanguageContext";
 import { userService } from "../services/userService";
-import { User } from "../types";
-import { sportsService, getUserByUserId, sendFriendRequest, acceptFriendRequest, removeFriend } from "../services/supabaseService";
+import { User, EventRequest } from "../types";
+import {
+  sportsService,
+  getUserByUserId,
+  sendFriendRequest,
+  acceptFriendRequest,
+  removeFriend,
+} from "../services/supabaseService";
 import { isValidUserId } from "../utils/userId";
 
 interface Sport {
@@ -21,92 +34,125 @@ export const Home: React.FC = () => {
   const { user } = useAuth();
   const { events, searchEvents, joinEvent } = useEvents();
   const { unreadCount } = useMessages();
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<string>("");
-  const [selectedLocation, setSelectedLocation] = useState<string>("Bà Rịa - Vũng Tàu");
-  const [eventPlayersMap, setEventPlayersMap] = useState<Record<string, User[]>>({});
+  const [selectedLocation, setSelectedLocation] =
+    useState<string>("Bà Rịa - Vũng Tàu");
+  const [eventPlayersMap, setEventPlayersMap] = useState<
+    Record<string, User[]>
+  >({});
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'calendar' | 'map'>('calendar');
+  const [viewMode, setViewMode] = useState<"calendar" | "map">("calendar");
   const [showCalendar, setShowCalendar] = useState<boolean>(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [mapViewDate, setMapViewDate] = useState<string>(new Date().toISOString().split('T')[0]); // Default to today
-  const [showMonthYearPicker, setShowMonthYearPicker] = useState<boolean>(false);
+  const [mapViewDate, setMapViewDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  ); // Default to today
+  const [showMonthYearPicker, setShowMonthYearPicker] =
+    useState<boolean>(false);
   const monthYearPickerRef = useRef<HTMLDivElement>(null);
 
   // Helper function to normalize Vietnamese text (remove diacritics and normalize)
   const normalizeVietnamese = (text: string): string => {
     return text
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D')
-      .replace(/\s+/g, ' ') // Normalize whitespace
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .replace(/\s+/g, " ") // Normalize whitespace
       .trim();
   };
 
   // Helper function to check if location matches city
-  const locationMatchesCity = (eventLocation: string, cityName: string): boolean => {
+  const locationMatchesCity = (
+    eventLocation: string,
+    cityName: string
+  ): boolean => {
     const normalizedLocation = normalizeVietnamese(eventLocation);
-    
+
     // Find the city object to get both Vietnamese and English names
-    const city = vietnamCities.find(c => c.name === cityName || c.english === cityName);
+    const city = vietnamCities.find(
+      (c) => c.name === cityName || c.english === cityName
+    );
     if (!city) {
       // Fallback: try to match with the provided cityName directly
       const normalizedCity = normalizeVietnamese(cityName);
       return normalizedLocation.includes(normalizedCity);
     }
-    
+
     // Normalize both Vietnamese and English names
     const normalizedVietnameseName = normalizeVietnamese(city.name);
     const normalizedEnglishName = normalizeVietnamese(city.english);
-    
+
     // Check if either Vietnamese or English name appears in location
-    if (normalizedLocation.includes(normalizedVietnameseName) || normalizedLocation.includes(normalizedEnglishName)) {
+    if (
+      normalizedLocation.includes(normalizedVietnameseName) ||
+      normalizedLocation.includes(normalizedEnglishName)
+    ) {
       return true;
     }
-    
+
     // For compound city names, check if key parts match
-    const vietnameseParts = normalizedVietnameseName.split(/[\s-]+/).filter(part => part.length >= 2);
-    const englishParts = normalizedEnglishName.split(/[\s-]+/).filter(part => part.length >= 2);
-    
+    const vietnameseParts = normalizedVietnameseName
+      .split(/[\s-]+/)
+      .filter((part) => part.length >= 2);
+    const englishParts = normalizedEnglishName
+      .split(/[\s-]+/)
+      .filter((part) => part.length >= 2);
+
     // Check Vietnamese parts
     if (vietnameseParts.length >= 2) {
-      const matchingParts = vietnameseParts.filter(part => normalizedLocation.includes(part));
+      const matchingParts = vietnameseParts.filter((part) =>
+        normalizedLocation.includes(part)
+      );
       if (matchingParts.length >= 2) return true;
     }
-    
+
     // Check English parts
     if (englishParts.length >= 2) {
-      const matchingParts = englishParts.filter(part => normalizedLocation.includes(part));
+      const matchingParts = englishParts.filter((part) =>
+        normalizedLocation.includes(part)
+      );
       if (matchingParts.length >= 2) return true;
     }
-    
+
     return false;
   };
 
   // Vietnamese cities list with Vietnamese names and coordinates
   const vietnamCities = [
-    { name: "Thành phố Hồ Chí Minh", english: "Ho Chi Minh City", lat: 10.8231, lng: 106.6297 },
+    {
+      name: "Thành phố Hồ Chí Minh",
+      english: "Ho Chi Minh City",
+      lat: 10.8231,
+      lng: 106.6297,
+    },
     { name: "Hà Nội", english: "Hanoi", lat: 21.0285, lng: 105.8542 },
     { name: "Đà Nẵng", english: "Da Nang", lat: 16.0544, lng: 108.2022 },
     { name: "Hải Phòng", english: "Hai Phong", lat: 20.8449, lng: 106.6881 },
     { name: "Cần Thơ", english: "Can Tho", lat: 10.0452, lng: 105.7469 },
-    { name: "Vũng Tàu", english: "Vung Tau", lat: 10.3460, lng: 107.0843 },
+    { name: "Vũng Tàu", english: "Vung Tau", lat: 10.346, lng: 107.0843 },
     { name: "Nha Trang", english: "Nha Trang", lat: 12.2388, lng: 109.1967 },
     { name: "Huế", english: "Hue", lat: 16.4637, lng: 107.5909 },
     { name: "Đà Lạt", english: "Da Lat", lat: 11.9404, lng: 108.4583 },
-    { name: "Quy Nhơn", english: "Quy Nhon", lat: 13.7820, lng: 109.2197 },
+    { name: "Quy Nhơn", english: "Quy Nhon", lat: 13.782, lng: 109.2197 },
     { name: "Phan Thiết", english: "Phan Thiet", lat: 10.9376, lng: 108.1581 },
     { name: "Vinh", english: "Vinh", lat: 18.6734, lng: 105.6924 },
-    { name: "Thái Nguyên", english: "Thai Nguyen", lat: 21.5928, lng: 105.8442 },
+    {
+      name: "Thái Nguyên",
+      english: "Thai Nguyen",
+      lat: 21.5928,
+      lng: 105.8442,
+    },
     { name: "Biên Hòa", english: "Bien Hoa", lat: 10.9447, lng: 106.8243 },
     { name: "Long Xuyên", english: "Long Xuyen", lat: 10.3865, lng: 105.4351 },
     { name: "Rạch Giá", english: "Rach Gia", lat: 10.0124, lng: 105.0809 },
-    { name: "Mỹ Tho", english: "My Tho", lat: 10.3600, lng: 106.3600 },
-    { name: "Cà Mau", english: "Ca Mau", lat: 9.1769, lng: 105.1500 },
+    { name: "Mỹ Tho", english: "My Tho", lat: 10.36, lng: 106.36 },
+    { name: "Cà Mau", english: "Ca Mau", lat: 9.1769, lng: 105.15 },
     { name: "Bạc Liêu", english: "Bac Lieu", lat: 9.2942, lng: 105.7278 },
     { name: "Sóc Trăng", english: "Soc Trang", lat: 9.6025, lng: 105.9739 },
     { name: "Trà Vinh", english: "Tra Vinh", lat: 9.9347, lng: 106.3453 },
@@ -114,30 +160,38 @@ export const Home: React.FC = () => {
     { name: "Tây Ninh", english: "Tay Ninh", lat: 11.3131, lng: 106.0963 },
     { name: "Bình Dương", english: "Binh Duong", lat: 11.3254, lng: 106.4774 },
     { name: "Đồng Nai", english: "Dong Nai", lat: 10.9574, lng: 106.8429 },
-    { name: "Bà Rịa - Vũng Tàu", english: "Ba Ria - Vung Tau", lat: 10.4963, lng: 107.1684 },
+    {
+      name: "Bà Rịa - Vũng Tàu",
+      english: "Ba Ria - Vung Tau",
+      lat: 10.4963,
+      lng: 107.1684,
+    },
     { name: "Khánh Hòa", english: "Khanh Hoa", lat: 12.2388, lng: 109.1967 },
     { name: "Lâm Đồng", english: "Lam Dong", lat: 11.9404, lng: 108.4583 },
     { name: "Bình Thuận", english: "Binh Thuan", lat: 10.9376, lng: 108.1581 },
     { name: "Bình Phước", english: "Binh Phuoc", lat: 11.6476, lng: 106.6056 },
-    { name: "Đồng Tháp", english: "Dong Thap", lat: 10.3600, lng: 106.3600 },
+    { name: "Đồng Tháp", english: "Dong Thap", lat: 10.36, lng: 106.36 },
     { name: "An Giang", english: "An Giang", lat: 10.3865, lng: 105.4351 },
-    { name: "Kiên Giang", english: "Kien Giang", lat: 10.0124, lng: 105.0809 }
+    { name: "Kiên Giang", english: "Kien Giang", lat: 10.0124, lng: 105.0809 },
   ];
 
   // Close month/year picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (monthYearPickerRef.current && !monthYearPickerRef.current.contains(event.target as Node)) {
+      if (
+        monthYearPickerRef.current &&
+        !monthYearPickerRef.current.contains(event.target as Node)
+      ) {
         setShowMonthYearPicker(false);
       }
     };
 
     if (showMonthYearPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showMonthYearPicker]);
 
@@ -154,7 +208,11 @@ export const Home: React.FC = () => {
   // Get event found by code
   const codeEvent = useMemo(() => {
     if (!isCodeSearch) return null;
-    return events.find(e => e.code?.toUpperCase() === searchQuery.trim().toUpperCase() && e.status === 'open');
+    return events.find(
+      (e) =>
+        e.code?.toUpperCase() === searchQuery.trim().toUpperCase() &&
+        e.status === "open"
+    );
   }, [isCodeSearch, searchQuery, events]);
 
   // Memoize filteredEvents to prevent unnecessary recalculations
@@ -168,7 +226,9 @@ export const Home: React.FC = () => {
     let result: typeof events = [];
 
     if (selectedFilter) {
-      result = events.filter((e) => e.status === "open" && e.sport === selectedFilter);
+      result = events.filter(
+        (e) => e.status === "open" && e.sport === selectedFilter
+      );
     } else {
       result = events.filter((e) => e.status === "open");
     }
@@ -181,18 +241,17 @@ export const Home: React.FC = () => {
     }
 
     // Filter by date if in map view mode
-    if (viewMode === 'map' && mapViewDate) {
+    if (viewMode === "map" && mapViewDate) {
       result = result.filter((e) => {
         return e.date === mapViewDate;
       });
       // In map view, include past events (they will be shown with grey markers)
-      return result
-        .sort((a, b) => {
-          // Sort by date and time (earliest first)
-          const dateTimeA = new Date(`${a.date}T${a.time}`).getTime();
-          const dateTimeB = new Date(`${b.date}T${b.time}`).getTime();
-          return dateTimeA - dateTimeB;
-        });
+      return result.sort((a, b) => {
+        // Sort by date and time (earliest first)
+        const dateTimeA = new Date(`${a.date}T${a.time}`).getTime();
+        const dateTimeB = new Date(`${b.date}T${b.time}`).getTime();
+        return dateTimeA - dateTimeB;
+      });
     }
 
     // Filter out past events and sort by start time (for non-map views)
@@ -200,13 +259,17 @@ export const Home: React.FC = () => {
       .filter((e) => {
         // Check if event is upcoming or happening (not past)
         const eventDateTime = new Date(`${e.date}T${e.time}`);
-        const eventEndTime = e.endTime ? new Date(`${e.date}T${e.endTime}`) : null;
-        
-        // If event has an end time, check if it hasn't ended yet
+        const eventEndTime = e.endTime
+          ? new Date(`${e.date}T${e.endTime}`)
+          : null;
+
+        // If event has an end time, show if it hasn't ended yet
+        // (this includes events that are currently happening and events that haven't started)
         if (eventEndTime) {
           return eventEndTime >= now;
         }
-        // If no end time, check if start time hasn't passed (or is happening now)
+        // If no end time, show if start time hasn't passed yet
+        // (events without end time are considered single-point events)
         return eventDateTime >= now;
       })
       .sort((a, b) => {
@@ -216,7 +279,14 @@ export const Home: React.FC = () => {
         return dateTimeA - dateTimeB;
       })
       .slice(0, 10); // Limit to 10 events
-  }, [searchQuery, selectedFilter, selectedLocation, viewMode, mapViewDate, events]);
+  }, [
+    searchQuery,
+    selectedFilter,
+    selectedLocation,
+    viewMode,
+    mapViewDate,
+    events,
+  ]);
 
   // Load sports from database
   useEffect(() => {
@@ -225,12 +295,12 @@ export const Home: React.FC = () => {
         const sportsData = await sportsService.getAllSports();
         setSports(sportsData);
       } catch (err) {
-        console.error('Error loading sports:', err);
+        console.error("Error loading sports:", err);
         // Fallback to default sports
         setSports([
-          { id: '1', name: 'Tennis', icon: 'sports_tennis' },
-          { id: '2', name: 'Pickleball', icon: 'sports_tennis' },
-          { id: '3', name: 'Badminton', icon: 'sports_tennis' },
+          { id: "1", name: "Tennis", icon: "sports_tennis" },
+          { id: "2", name: "Pickleball", icon: "sports_tennis" },
+          { id: "3", name: "Badminton", icon: "sports_tennis" },
         ]);
       } finally {
         setSportsLoading(false);
@@ -241,12 +311,12 @@ export const Home: React.FC = () => {
 
   // Load player data for all events - use event IDs as dependency to prevent unnecessary refetches
   const filteredEventIds = useMemo(() => {
-    const eventIds = [...filteredEvents.map(e => e.id)];
+    const eventIds = [...filteredEvents.map((e) => e.id)];
     // Include code event if it exists
     if (codeEvent) {
       eventIds.push(codeEvent.id);
     }
-    return eventIds.sort().join(',');
+    return eventIds.sort().join(",");
   }, [filteredEvents, codeEvent]);
 
   useEffect(() => {
@@ -256,10 +326,10 @@ export const Home: React.FC = () => {
       // Use the current filteredEvents from closure (it's memoized, so safe)
       const currentEvents = [...filteredEvents];
       // Include code event if it exists
-      if (codeEvent && !currentEvents.find(e => e.id === codeEvent.id)) {
+      if (codeEvent && !currentEvents.find((e) => e.id === codeEvent.id)) {
         currentEvents.push(codeEvent);
       }
-      
+
       if (currentEvents.length === 0) {
         if (!cancelled) {
           setEventPlayersMap({});
@@ -268,11 +338,11 @@ export const Home: React.FC = () => {
       }
 
       const map: Record<string, User[]> = {};
-      
+
       // Get all unique player IDs from all events
       const allPlayerIds = new Set<string>();
-      currentEvents.forEach(event => {
-        event.players.forEach(playerId => allPlayerIds.add(playerId));
+      currentEvents.forEach((event) => {
+        event.players.forEach((playerId) => allPlayerIds.add(playerId));
       });
 
       if (allPlayerIds.size === 0) {
@@ -294,16 +364,18 @@ export const Home: React.FC = () => {
         }
       });
 
-      const players = (await Promise.all(playerPromises)).filter((p): p is User => p !== null);
-      
+      const players = (await Promise.all(playerPromises)).filter(
+        (p): p is User => p !== null
+      );
+
       if (cancelled) return;
-      
-      const playersById = new Map(players.map(p => [p.id, p]));
+
+      const playersById = new Map(players.map((p) => [p.id, p]));
 
       // Map players to their events
-      currentEvents.forEach(event => {
+      currentEvents.forEach((event) => {
         map[event.id] = event.players
-          .map(playerId => playersById.get(playerId))
+          .map((playerId) => playersById.get(playerId))
           .filter((p): p is User => p !== undefined);
       });
 
@@ -323,28 +395,66 @@ export const Home: React.FC = () => {
     };
   }, [filteredEventIds, filteredEvents, codeEvent]);
 
-  const formatEventTime = (date: string, time: string) => {
+  const formatEventTime = (date: string, time: string, endTime?: string) => {
     const eventDate = new Date(`${date}T${time}`);
     const now = new Date();
     const diff = eventDate.getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return `Today, ${time}`;
-    if (days === 1) return `Tomorrow, ${time}`;
-    return `${new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })}, ${time}`;
+    const formatTimeForEvent = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(":");
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
+      const displayHour = hour % 12 || 12;
+      return `${displayHour}:${minutes} ${ampm}`;
+    };
+
+    const timeStr = endTime
+      ? `${formatTimeForEvent(time)} - ${formatTimeForEvent(endTime)}`
+      : formatTimeForEvent(time);
+    const dayNames = [
+      t("date.days.sunday"),
+      t("date.days.monday"),
+      t("date.days.tuesday"),
+      t("date.days.wednesday"),
+      t("date.days.thursday"),
+      t("date.days.friday"),
+      t("date.days.saturday"),
+    ];
+    const dayName = dayNames[eventDate.getDay()];
+
+    if (days === 0) return `${t("date.today")} (${dayName}), ${timeStr}`;
+    if (days === 1) return `${t("date.tomorrow")} (${dayName}), ${timeStr}`;
+    const dateObj = new Date(date);
+    const monthNames = [
+      t("date.months.january"),
+      t("date.months.february"),
+      t("date.months.march"),
+      t("date.months.april"),
+      t("date.months.may"),
+      t("date.months.june"),
+      t("date.months.july"),
+      t("date.months.august"),
+      t("date.months.september"),
+      t("date.months.october"),
+      t("date.months.november"),
+      t("date.months.december"),
+    ];
+    const monthName = monthNames[dateObj.getMonth()];
+    return `${dayName}, ${dateObj.getDate()} ${monthName}, ${timeStr}`;
   };
 
-  const handleJoinEvent = useCallback(async (eventId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await joinEvent(eventId);
-    } catch (err: any) {
-      alert(err.message || "Failed to join event");
-    }
-  }, [joinEvent]);
+  const handleJoinEvent = useCallback(
+    async (eventId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await joinEvent(eventId);
+      } catch (err: any) {
+        alert(err.message || "Failed to join event");
+      }
+    },
+    [joinEvent]
+  );
 
   // Calendar functions
   const getDaysInMonth = (date: Date) => {
@@ -354,37 +464,49 @@ export const Home: React.FC = () => {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     const days: (Date | null)[] = [];
-    
+
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i));
     }
-    
+
     return days;
   };
 
   const calendarDays = getDaysInMonth(currentMonth);
-  
+
   const getEventsForDate = (date: Date | null): typeof events => {
     if (!date) return [];
     const now = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
-    
-    let result = events
-      .filter(e => {
-        if (e.date !== dateStr || e.status !== 'open') return false;
-        // Filter out past events
-        const eventDateTime = new Date(`${e.date}T${e.time}`);
-        return eventDateTime >= now;
-      });
+
+    let result = events.filter((e) => {
+      if (e.date !== dateStr || e.status !== "open") return false;
+
+      // Filter by sport if selected
+      if (selectedFilter && e.sport !== selectedFilter) return false;
+
+      // Check if event is upcoming or happening (not past)
+      const eventDateTime = new Date(`${e.date}T${e.time}`);
+      const eventEndTime = e.endTime
+        ? new Date(`${e.date}T${e.endTime}`)
+        : null;
+
+      // If event has an end time, show if it hasn't ended yet
+      if (eventEndTime) {
+        return eventEndTime >= now;
+      }
+      // If no end time, show if start time hasn't passed yet
+      return eventDateTime >= now;
+    });
 
     // Filter by location if selected
     if (selectedLocation) {
@@ -394,11 +516,11 @@ export const Home: React.FC = () => {
         return locationLower.includes(selectedLocationLower);
       });
     }
-    
+
     return result.sort((a, b) => {
       // Sort by time (earliest first)
-      const timeA = a.time.split(':').map(Number);
-      const timeB = b.time.split(':').map(Number);
+      const timeA = a.time.split(":").map(Number);
+      const timeB = b.time.split(":").map(Number);
       const minutesA = timeA[0] * 60 + timeA[1];
       const minutesB = timeB[0] * 60 + timeB[1];
       return minutesA - minutesB;
@@ -408,17 +530,29 @@ export const Home: React.FC = () => {
   const getDayEvents = (date: Date): typeof events => {
     const now = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
-    
-    let result = events
-      .filter(e => {
-        if (e.date !== dateStr || e.status !== 'open') return false;
-        // Filter out past events
-        const eventDateTime = new Date(`${e.date}T${e.time}`);
-        return eventDateTime >= now;
-      });
+
+    let result = events.filter((e) => {
+      if (e.date !== dateStr || e.status !== "open") return false;
+
+      // Filter by sport if selected
+      if (selectedFilter && e.sport !== selectedFilter) return false;
+
+      // Check if event is upcoming or happening (not past)
+      const eventDateTime = new Date(`${e.date}T${e.time}`);
+      const eventEndTime = e.endTime
+        ? new Date(`${e.date}T${e.endTime}`)
+        : null;
+
+      // If event has an end time, show if it hasn't ended yet
+      if (eventEndTime) {
+        return eventEndTime >= now;
+      }
+      // If no end time, show if start time hasn't passed yet
+      return eventDateTime >= now;
+    });
 
     // Filter by location if selected
     if (selectedLocation) {
@@ -428,21 +562,21 @@ export const Home: React.FC = () => {
         return locationLower.includes(selectedLocationLower);
       });
     }
-    
+
     return result.sort((a, b) => {
       // Sort by time (earliest first)
-      const timeA = a.time.split(':').map(Number);
-      const timeB = b.time.split(':').map(Number);
+      const timeA = a.time.split(":").map(Number);
+      const timeB = b.time.split(":").map(Number);
       const minutesA = timeA[0] * 60 + timeA[1];
       const minutesB = timeB[0] * 60 + timeB[1];
       return minutesA - minutesB;
     });
   };
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentMonth(prev => {
+  const navigateMonth = (direction: "prev" | "next") => {
+    setCurrentMonth((prev) => {
       const newDate = new Date(prev);
-      if (direction === 'prev') {
+      if (direction === "prev") {
         newDate.setMonth(prev.getMonth() - 1);
       } else {
         newDate.setMonth(prev.getMonth() + 1);
@@ -452,7 +586,7 @@ export const Home: React.FC = () => {
   };
 
   const selectMonth = (monthIndex: number) => {
-    setCurrentMonth(prev => {
+    setCurrentMonth((prev) => {
       const newDate = new Date(prev);
       newDate.setMonth(monthIndex);
       return newDate;
@@ -461,7 +595,7 @@ export const Home: React.FC = () => {
   };
 
   const selectYear = (year: number) => {
-    setCurrentMonth(prev => {
+    setCurrentMonth((prev) => {
       const newDate = new Date(prev);
       newDate.setFullYear(year);
       return newDate;
@@ -492,137 +626,207 @@ export const Home: React.FC = () => {
   };
 
   const formatDayHeader = (date: Date) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const days = [
+      t("date.days.sunday"),
+      t("date.days.monday"),
+      t("date.days.tuesday"),
+      t("date.days.wednesday"),
+      t("date.days.thursday"),
+      t("date.days.friday"),
+      t("date.days.saturday"),
+    ];
+    const months = [
+      t("date.months.january"),
+      t("date.months.february"),
+      t("date.months.march"),
+      t("date.months.april"),
+      t("date.months.may"),
+      t("date.months.june"),
+      t("date.months.july"),
+      t("date.months.august"),
+      t("date.months.september"),
+      t("date.months.october"),
+      t("date.months.november"),
+      t("date.months.december"),
+    ];
     const dayName = days[date.getDay()];
     const monthName = months[date.getMonth()];
     const dayNum = date.getDate();
     const year = date.getFullYear();
     const today = new Date();
     const isTodayDate = date.toDateString() === today.toDateString();
-    
+
     if (isTodayDate) {
-      return `Today, ${monthName} ${dayNum}, ${year}`;
+      return `${t("date.today")}, ${dayNum} ${monthName} ${year}`;
     }
-    return `${dayName}, ${monthName} ${dayNum}, ${year}`;
+    return `${dayName}, ${dayNum} ${monthName} ${year}`;
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const [hours, minutes] = time.split(":");
     const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = [
+    t("date.months.january"),
+    t("date.months.february"),
+    t("date.months.march"),
+    t("date.months.april"),
+    t("date.months.may"),
+    t("date.months.june"),
+    t("date.months.july"),
+    t("date.months.august"),
+    t("date.months.september"),
+    t("date.months.october"),
+    t("date.months.november"),
+    t("date.months.december"),
+  ];
+  const dayNames = [
+    t("date.days.short.sun"),
+    t("date.days.short.mon"),
+    t("date.days.short.tue"),
+    t("date.days.short.wed"),
+    t("date.days.short.thu"),
+    t("date.days.short.fri"),
+    t("date.days.short.sat"),
+  ];
 
   // Memoize day events for selected day to prevent re-computation
   const dayEventsForSelectedDay = useMemo(() => {
     if (!selectedDay) return [];
+    const now = new Date();
     const year = selectedDay.getFullYear();
-    const month = String(selectedDay.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDay.getDate()).padStart(2, '0');
+    const month = String(selectedDay.getMonth() + 1).padStart(2, "0");
+    const day = String(selectedDay.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
     return events
-      .filter(e => e.date === dateStr && e.status === 'open')
+      .filter((e) => {
+        if (e.date !== dateStr || e.status !== "open") return false;
+
+        // Filter by sport if selected
+        if (selectedFilter && e.sport !== selectedFilter) return false;
+
+        // Check if event is upcoming or happening (not past)
+        const eventDateTime = new Date(`${e.date}T${e.time}`);
+        const eventEndTime = e.endTime
+          ? new Date(`${e.date}T${e.endTime}`)
+          : null;
+
+        // If event has an end time, show if it hasn't ended yet
+        if (eventEndTime) {
+          return eventEndTime >= now;
+        }
+        // If no end time, show if start time hasn't passed yet
+        return eventDateTime >= now;
+      })
       .sort((a, b) => {
-        const timeA = a.time.split(':').map(Number);
-        const timeB = b.time.split(':').map(Number);
+        const timeA = a.time.split(":").map(Number);
+        const timeB = b.time.split(":").map(Number);
         const minutesA = timeA[0] * 60 + timeA[1];
         const minutesB = timeB[0] * 60 + timeB[1];
         return minutesA - minutesB;
       });
-  }, [selectedDay, events]);
+  }, [selectedDay, events, selectedFilter]);
 
   return (
-    <div className="flex flex-col pb-24">
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/5 px-5 lg:px-8 xl:px-12 pt-8 lg:pt-6 xl:pt-5 pb-4 lg:pb-3 xl:pb-2">
-        <div className="flex items-center gap-3 mb-4 lg:mb-3 xl:mb-2">
+    <div className="flex flex-col pb-24 lg:pb-4">
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/5 px-5 pt-4 pb-3 lg:px-6 lg:py-2">
+        <div className="flex items-center gap-2 mb-2 lg:gap-1.5 lg:mb-1">
           <Avatar
             src={user?.avatar || `https://i.pravatar.cc/150?u=${user?.id}`}
           />
           <div>
-            <p className="text-xs font-medium text-text-secondary">
-              Welcome back,
+            <p className="text-[10px] font-medium text-text-secondary lg:text-[9px]">
+              {t("common.welcome")},
             </p>
-            <h2 className="text-lg font-bold leading-tight">
-              {user ? `${user.firstName} ${user.lastName}` : "User"}
+            <h2 className="text-sm font-bold leading-tight lg:text-xs">
+              {user ? `${user.firstName} ${user.lastName}` : t('common.user')}
             </h2>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 lg:gap-1.5">
             <div className="relative">
-              <button 
+              <button
                 onClick={() => navigate("/settings/notifications")}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-surface text-white hover:bg-surface-light/10 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-surface text-white hover:bg-surface-light/10 transition-colors lg:h-7 lg:w-7"
               >
-                <span className="material-symbols-outlined">notifications</span>
+                <span className="material-symbols-outlined text-base lg:text-sm">
+                  settings
+                </span>
                 {unreadCount > 0 && (
-                <span className="absolute top-2 right-2.5 h-2 w-2 rounded-full bg-danger border border-surface"></span>
+                  <span className="absolute top-1.5 right-2 h-1.5 w-1.5 rounded-full bg-danger border border-surface lg:top-1 lg:right-1.5 lg:h-1 lg:w-1"></span>
                 )}
               </button>
             </div>
           </div>
         </div>
-
       </header>
 
-      <div className="px-5 lg:px-8 xl:px-12 py-6 lg:py-4 xl:py-3 w-full">
-        <div className="flex items-center justify-between mb-4 lg:mb-3 xl:mb-2">
-          <h1 className="text-2xl lg:text-xl xl:text-lg font-extrabold">Find your game</h1>
-          <div className="flex items-center gap-2">
+      <div className="px-5 py-4 w-full lg:px-6 lg:py-3">
+        <div className="lg:max-w-7xl lg:mx-auto lg:w-full">
+        <div className="flex items-center justify-between mb-3 lg:mb-2">
+          <h1 className="text-lg font-extrabold lg:text-base">{t("home.findYourGame")}</h1>
+          <div className="flex items-center gap-2 lg:gap-1.5">
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-surface rounded-lg p-1 border border-white/5">
+            <div className="flex items-center bg-surface rounded-lg p-0.5 border border-white/5 lg:rounded">
               <button
                 onClick={() => {
-                  setViewMode('calendar');
+                  setViewMode("calendar");
                   setShowCalendar(true);
                   setSelectedDay(null);
                 }}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'calendar'
-                    ? 'bg-primary text-white'
-                    : 'text-slate-400 hover:text-white'
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all lg:px-2 lg:py-0.5 lg:text-[11px] ${
+                  viewMode === "calendar"
+                    ? "bg-primary text-white"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
-                <span className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-lg">calendar_month</span>
-                  <span className="hidden sm:inline">Calendar</span>
+                <span className="flex items-center gap-1 lg:gap-0.5">
+                  <span className="material-symbols-outlined text-base lg:text-sm">
+                    calendar_month
+                  </span>
+                  <span className="hidden sm:inline lg:text-[11px]">{t("home.calendar")}</span>
                 </span>
               </button>
               <button
                 onClick={() => {
-                  setViewMode('map');
+                  setViewMode("map");
                   setShowCalendar(false);
                   setSelectedDay(null);
                 }}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'map'
-                    ? 'bg-primary text-white'
-                    : 'text-slate-400 hover:text-white'
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all lg:px-2 lg:py-0.5 lg:text-[11px] ${
+                  viewMode === "map"
+                    ? "bg-primary text-white"
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
-                <span className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-lg">map</span>
-                  <span className="hidden sm:inline">Map</span>
+                <span className="flex items-center gap-1 lg:gap-0.5">
+                  <span className="material-symbols-outlined text-base lg:text-sm">
+                    map
+                  </span>
+                  <span className="hidden sm:inline lg:text-[11px]">{t("home.map")}</span>
                 </span>
               </button>
             </div>
           </div>
         </div>
-        <div className="relative group mb-6 lg:mb-4 xl:mb-3">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-            <span className="material-symbols-outlined">search</span>
+        <div className="relative group mb-4 lg:mb-3">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 lg:pl-2">
+            <span className="material-symbols-outlined text-base lg:text-sm">search</span>
           </div>
           <input
-            className="block w-full rounded-2xl lg:rounded-xl xl:rounded-lg border-none bg-surface py-3.5 lg:py-3 xl:py-2.5 pl-12 lg:pl-10 xl:pl-8 pr-4 text-base lg:text-sm xl:text-sm font-medium placeholder:text-slate-500 focus:ring-2 focus:ring-primary/50 text-white uppercase tracking-wider"
-            placeholder="Enter event code (e.g., ABC123)"
+            className="block w-full rounded-xl border-none bg-surface py-2.5 pl-10 pr-4 text-sm font-medium placeholder:text-slate-500 focus:ring-2 focus:ring-primary/50 text-white uppercase tracking-wider lg:py-2 lg:pl-8 lg:pr-3 lg:text-xs"
+            placeholder={t('events.enterEventCode')}
             type="text"
             value={searchQuery}
             onChange={(e) => {
               // Only allow alphanumeric characters, max 6 characters
-              const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+              const value = e.target.value
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "")
+                .slice(0, 6);
               setSearchQuery(value);
             }}
             pattern="[A-Z]{3}[0-9]{3}"
@@ -637,7 +841,8 @@ export const Home: React.FC = () => {
               codeEvent ? (
                 (() => {
                   const eventPlayers = eventPlayersMap[codeEvent.id] || [];
-                  const spotsLeft = codeEvent.maxPlayers - codeEvent.currentPlayers;
+                  const spotsLeft =
+                    codeEvent.maxPlayers - codeEvent.currentPlayers;
                   const isJoined = user && codeEvent.players.includes(user.id);
 
                   return (
@@ -679,7 +884,11 @@ export const Home: React.FC = () => {
                                 <span className="material-symbols-outlined text-[14px]">
                                   schedule
                                 </span>
-                                {formatEventTime(codeEvent.date, codeEvent.time)}
+                                {formatEventTime(
+                                  codeEvent.date,
+                                  codeEvent.time,
+                                  codeEvent.endTime
+                                )}
                               </div>
                               {codeEvent.price && (
                                 <>
@@ -688,7 +897,12 @@ export const Home: React.FC = () => {
                                     <span className="material-symbols-outlined text-[14px]">
                                       payments
                                     </span>
-                                    <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(codeEvent.price)}</span>
+                                    <span>
+                                      {new Intl.NumberFormat("vi-VN", {
+                                        style: "currency",
+                                        currency: "VND",
+                                      }).format(codeEvent.price)}
+                                    </span>
                                   </div>
                                 </>
                               )}
@@ -697,8 +911,10 @@ export const Home: React.FC = () => {
                         </div>
                         <Badge type={spotsLeft === 1 ? "neon" : "slate"}>
                           {spotsLeft === 1
-                            ? "Last Spot!"
-                            : `${codeEvent.currentPlayers}/${codeEvent.maxPlayers} Players`}
+                            ? t("events.lastSpot")
+                            : `${codeEvent.currentPlayers}/${
+                                codeEvent.maxPlayers
+                              } ${t("events.players")}`}
                         </Badge>
                       </div>
                       <div className="mt-1 flex items-center justify-between border-t border-primary/20 pt-3">
@@ -726,10 +942,10 @@ export const Home: React.FC = () => {
                           className="rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-white hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isJoined
-                            ? "Joined"
+                            ? t("events.joined")
                             : spotsLeft === 0
-                            ? "Full"
-                            : "Join Game"}
+                            ? t("events.full")
+                            : t("events.join")}
                         </button>
                       </div>
                     </div>
@@ -737,26 +953,42 @@ export const Home: React.FC = () => {
                 })()
               ) : (
                 <div className="rounded-xl bg-surface border border-white/10 p-4 text-center">
-                  <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">search_off</span>
-                  <p className="text-sm text-slate-300 font-medium">Event not found</p>
-                  <p className="text-xs text-slate-500 mt-1">No event found with code: {searchQuery.trim().toUpperCase()}</p>
+                  <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">
+                    search_off
+                  </span>
+                  <p className="text-sm text-slate-300 font-medium">
+                    Event not found
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No event found with code: {searchQuery.trim().toUpperCase()}
+                  </p>
                 </div>
               )
             ) : (
               <div className="rounded-xl bg-surface border border-yellow-500/30 p-4 text-center">
-                <span className="material-symbols-outlined text-4xl text-yellow-400 mb-2 block">info</span>
-                <p className="text-sm text-slate-300 font-medium">Invalid code format</p>
-                <p className="text-xs text-slate-500 mt-1">Please enter a 6-character code (e.g., ABC123)</p>
+                <span className="material-symbols-outlined text-4xl text-yellow-400 mb-2 block">
+                  info
+                </span>
+                <p className="text-sm text-slate-300 font-medium">
+                  Invalid code format
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Please enter a 6-character code (e.g., ABC123)
+                </p>
               </div>
             )}
           </div>
         )}
 
-        <div className="flex gap-3 lg:gap-2 xl:gap-2 overflow-x-auto pb-4 lg:pb-3 xl:pb-2 no-scrollbar">
+        <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             key="all"
-            onClick={() => setSelectedFilter("")}
-            className={`flex shrink-0 items-center gap-2 rounded-full px-5 lg:px-4 xl:px-3 py-2.5 lg:py-2 xl:py-1.5 text-sm lg:text-xs xl:text-xs font-bold transition-all active:scale-95 ${
+            type="button"
+            onClick={() => {
+              console.log("Setting filter to empty string");
+              setSelectedFilter("");
+            }}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 relative z-10 ${
               selectedFilter === ""
                 ? "bg-white text-black"
                 : "bg-surface text-slate-300 border border-white/5"
@@ -765,37 +997,41 @@ export const Home: React.FC = () => {
             All
           </button>
           {sportsLoading ? (
-            <div className="flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold bg-surface text-slate-300 border border-white/5 animate-pulse">
-              Loading...
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-surface text-slate-300 border border-white/5 animate-pulse">
+              {t("common.loading")}
             </div>
           ) : (
             sports.map((sport) => {
               const getSportIcon = (sportName: string) => {
-                const sportData = sports.find(s => s.name === sportName);
+                const sportData = sports.find((s) => s.name === sportName);
                 if (sportData) return sportData.icon;
                 // Fallback icons
                 const iconMap: Record<string, string> = {
-                  'Tennis': 'sports_tennis',
-                  'Pickleball': 'sports_tennis',
-                  'Badminton': 'sports_tennis',
-                  'Basketball': 'sports_basketball',
-                  'Soccer': 'sports_soccer',
-                  'Volleyball': 'sports_volleyball',
+                  Tennis: "sports_tennis",
+                  Pickleball: "sports_tennis",
+                  Badminton: "sports_tennis",
+                  Basketball: "sports_basketball",
+                  Soccer: "sports_soccer",
+                  Volleyball: "sports_volleyball",
                 };
-                return iconMap[sportName] || 'sports';
+                return iconMap[sportName] || "sports";
               };
 
               return (
                 <button
                   key={sport.id}
-                  onClick={() => setSelectedFilter(sport.name)}
-                  className={`flex shrink-0 items-center gap-2 rounded-full px-5 lg:px-4 xl:px-3 py-2.5 lg:py-2 xl:py-1.5 text-sm lg:text-xs xl:text-xs font-bold transition-all active:scale-95 ${
+                  type="button"
+                  onClick={() => {
+                    console.log("Setting filter to:", sport.name);
+                    setSelectedFilter(sport.name);
+                  }}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 relative z-10 ${
                     selectedFilter === sport.name
                       ? "bg-white text-black"
                       : "bg-surface text-slate-300 border border-white/5"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[18px] lg:text-[16px] xl:text-[14px]">
+                  <span className="material-symbols-outlined text-base">
                     {sport.icon || getSportIcon(sport.name)}
                   </span>
                   {sport.name}
@@ -806,13 +1042,15 @@ export const Home: React.FC = () => {
         </div>
 
         {/* Location Filter - Only show in calendar mode */}
-        {viewMode === 'calendar' && (
-          <div className="mb-4 lg:mb-3 xl:mb-2">
-            <label className="text-sm font-medium text-slate-400 mb-2 block">Lọc theo địa điểm</label>
+        {viewMode === "calendar" && (
+          <div className="mb-3">
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+              {t('home.filterByLocation')}
+            </label>
             <select
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
-              className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white"
+              className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm"
             >
               {vietnamCities.map((city) => (
                 <option key={city.name} value={city.name}>
@@ -824,15 +1062,17 @@ export const Home: React.FC = () => {
         )}
 
         {/* Map View */}
-        {viewMode === 'map' && (
-          <div className="mt-4">
+        {viewMode === "map" && (
+          <div className="mt-3">
             {/* Location Filter for Map View */}
-            <div className="mb-4 lg:mb-3 xl:mb-2">
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Lọc theo địa điểm</label>
+            <div className="mb-3">
+              <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+                Lọc theo địa điểm
+              </label>
               <select
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white"
+                className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm"
               >
                 {vietnamCities.map((city) => (
                   <option key={city.name} value={city.name}>
@@ -842,53 +1082,106 @@ export const Home: React.FC = () => {
               </select>
             </div>
             {/* Date Filter for Map View */}
-            <div className="mb-4 lg:mb-3 xl:mb-2">
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Chọn ngày</label>
-              <input
-                type="date"
-                value={mapViewDate}
-                onChange={(e) => setMapViewDate(e.target.value)}
-                className="w-full bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                style={{
-                  colorScheme: 'dark'
-                }}
-              />
+            <div className="mb-3">
+              <label className="text-xs font-medium text-slate-400 mb-1.5 block">
+                Chọn ngày
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    mapViewDate
+                      ? (() => {
+                          const [year, month, day] = mapViewDate.split("-");
+                          const date = new Date(
+                            parseInt(year),
+                            parseInt(month) - 1,
+                            parseInt(day)
+                          );
+                          const dayNames = [
+                            "Sunday",
+                            "Monday",
+                            "Tuesday",
+                            "Wednesday",
+                            "Thursday",
+                            "Friday",
+                            "Saturday",
+                          ];
+                          const dayName = dayNames[date.getDay()];
+                          return `${dayName}, ${day}/${month}/${year}`;
+                        })()
+                      : ""
+                  }
+                  onClick={(e) => {
+                    const dateInput = e.currentTarget
+                      .nextElementSibling as HTMLInputElement;
+                    dateInput?.showPicker?.() || dateInput?.click();
+                  }}
+                  className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm cursor-pointer"
+                  placeholder="dd/mm/yyyy"
+                />
+                <input
+                  type="date"
+                  value={mapViewDate}
+                  onChange={(e) => setMapViewDate(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  style={{
+                    colorScheme: "dark",
+                  }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <span className="material-symbols-outlined text-base">
+                    calendar_month
+                  </span>
+                </span>
+              </div>
             </div>
             <EventsMapView
               events={filteredEvents}
               onEventClick={(event) => navigate(`/event/${event.id}`)}
               centerLocation={(() => {
-                const selectedCity = vietnamCities.find(city => city.name === selectedLocation);
-                return selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null;
+                const selectedCity = vietnamCities.find(
+                  (city) => city.name === selectedLocation
+                );
+                return selectedCity
+                  ? { lat: selectedCity.lat, lng: selectedCity.lng }
+                  : null;
               })()}
             />
           </div>
         )}
 
         {/* Day View - Under sport type selection */}
-        {selectedDay && viewMode === 'calendar' && (
-          <div className="px-0 pb-4 lg:pb-3 xl:pb-2 mt-4 lg:mt-3 xl:mt-2">
-            <div className="mb-4 lg:mb-3 xl:mb-2 flex items-center justify-between">
+        {selectedDay && viewMode === "calendar" && (
+          <div className="px-0 pb-3 mt-3" key={`day-view-${selectedFilter}`}>
+            <div className="mb-3 flex items-center justify-between">
               <div>
                 <button
                   onClick={() => setSelectedDay(null)}
-                  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-2 lg:mb-1 xl:mb-1"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-white/10 hover:bg-white/5 hover:border-primary/30 text-primary font-bold text-sm transition-all mb-2"
                 >
-                  <span className="material-symbols-outlined text-xl lg:text-lg xl:text-base">arrow_back</span>
-                  <span className="text-sm lg:text-xs xl:text-xs font-medium">Back to Calendar</span>
+                  <span className="material-symbols-outlined text-base">
+                    arrow_back
+                  </span>
+                  <span>{t("home.backToCalendar")}</span>
                 </button>
-                <h2 className="text-2xl lg:text-xl xl:text-lg font-bold">{formatDayHeader(selectedDay)}</h2>
+                <h2 className="text-lg font-bold">
+                  {formatDayHeader(selectedDay)}
+                </h2>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <button
                   onClick={() => {
                     const prevDay = new Date(selectedDay);
                     prevDay.setDate(prevDay.getDate() - 1);
                     setSelectedDay(prevDay);
                   }}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                 >
-                  <span className="material-symbols-outlined">chevron_left</span>
+                  <span className="material-symbols-outlined text-base">
+                    chevron_left
+                  </span>
                 </button>
                 <button
                   onClick={() => {
@@ -896,120 +1189,197 @@ export const Home: React.FC = () => {
                     nextDay.setDate(nextDay.getDate() + 1);
                     setSelectedDay(nextDay);
                   }}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                 >
-                  <span className="material-symbols-outlined">chevron_right</span>
+                  <span className="material-symbols-outlined text-base">
+                    chevron_right
+                  </span>
                 </button>
                 <button
                   onClick={() => setSelectedDay(new Date())}
-                  className="px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-bold hover:bg-primary/20 transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors"
                 >
-                  Today
+                  {t("date.today")}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-3 lg:space-y-2 xl:space-y-2">
+            <div className="space-y-2">
               {dayEventsForSelectedDay.length === 0 ? (
-                <div className="text-center py-12 lg:py-8 xl:py-6 text-slate-400">
-                  <span className="material-symbols-outlined text-4xl lg:text-3xl xl:text-2xl mb-2 block">event_busy</span>
-                  <p>No events scheduled for this day</p>
+                <div className="text-center py-8 text-slate-400">
+                  <span className="material-symbols-outlined text-3xl mb-2 block">
+                    event_busy
+                  </span>
+                  <p className="text-sm">{t('events.noEventsScheduled')}</p>
                 </div>
               ) : (
                 dayEventsForSelectedDay.map((event) => {
                   const eventPlayers = eventPlayersMap[event.id] || [];
-                  const [hours, minutes] = event.time.split(':');
+                  const [hours, minutes] = event.time.split(":");
                   const hour = parseInt(hours, 10);
                   const displayHour = hour % 12 || 12;
-                  const ampm = hour >= 12 ? 'PM' : 'AM';
-                  
+                  const ampm =
+                    hour >= 12 ? t("date.time.pm") : t("date.time.am");
+
                   // Compute endTime explicitly
                   let endTime: string | null = null;
                   if (event.endTime) {
-                    const [endHours, endMinutes] = event.endTime.split(':');
+                    const [endHours, endMinutes] = event.endTime.split(":");
                     const endHour = parseInt(endHours, 10);
                     const endDisplayHour = endHour % 12 || 12;
-                    const endAmpm = endHour >= 12 ? 'PM' : 'AM';
+                    const endAmpm =
+                      endHour >= 12 ? t("date.time.pm") : t("date.time.am");
                     endTime = `${endDisplayHour}:${endMinutes} ${endAmpm}`;
                   }
 
-                  const borderColor = 'border-primary/50';
-                  const bgColor = 'bg-primary/10';
-                  const accentColor = 'bg-primary';
+                  const isCreated = event.organizerId === user?.id;
+                  const isJoined = user && event.players.includes(user.id) && !isCreated;
+
+                  const borderColor = "border-primary/50";
+                  const bgColor = "bg-primary/10";
+                  const accentColor = "bg-primary";
 
                   return (
                     <div
                       key={event.id}
                       onClick={() => navigate(`/event/${event.id}`)}
-                      className={`${bgColor} ${borderColor} border-l-4 rounded-lg lg:rounded-md xl:rounded-md p-4 lg:p-3 xl:p-2.5 cursor-pointer hover:opacity-80 transition-opacity`}
+                      className={`${bgColor} ${borderColor} border-l-4 rounded-lg p-3 cursor-pointer hover:border-primary/70 hover:bg-primary/15 transition-all lg:p-2.5`}
                     >
-                      <div className="flex gap-4 lg:gap-3 xl:gap-2">
-                        <div className="flex flex-col items-center min-w-[60px] lg:min-w-[50px] xl:min-w-[45px]">
-                          <div className={`${accentColor} w-1 h-full rounded-full`}></div>
-                          <div className="text-center mt-2 lg:mt-1 xl:mt-1">
-                            <div className="text-lg lg:text-base xl:text-sm font-bold">{displayHour}:{minutes}</div>
-                            <div className="text-xs lg:text-[10px] xl:text-[10px] text-slate-400">{ampm}</div>
+                      <div className="flex gap-3 lg:gap-2">
+                        <div className="flex flex-col items-center min-w-[50px] lg:min-w-[45px]">
+                          <div
+                            className={`${accentColor} w-1.5 h-full rounded-full lg:w-1`}
+                          ></div>
+                          <div className="text-center mt-1 lg:mt-0.5">
+                            <div className="text-base font-extrabold text-primary lg:text-sm">
+                              {displayHour}:{minutes}
+                            </div>
+                            <div className="text-[10px] text-slate-400 lg:text-[9px]">
+                              {ampm}
+                            </div>
                             {endTime && (
                               <>
-                                <div className="text-xs lg:text-[10px] xl:text-[10px] text-slate-500 my-1">-</div>
-                                <div className="text-sm lg:text-xs xl:text-[10px] font-medium">{endTime}</div>
+                                <div className="text-[10px] text-slate-500 my-0.5 lg:text-[9px] lg:my-0">
+                                  -
+                                </div>
+                                <div className="text-xs font-semibold text-primary lg:text-[11px]">
+                                  {endTime}
+                                </div>
                               </>
                             )}
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-2 lg:mb-1 xl:mb-1">
-                            <div>
-                              <h3 className="text-lg lg:text-base xl:text-sm font-bold mb-1 lg:mb-0.5 xl:mb-0.5">{event.title}</h3>
-                              <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <span className="material-symbols-outlined text-base">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-2 lg:mb-1.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap lg:gap-1.5 lg:mb-0.5">
+                                <h3 className="text-base font-extrabold text-white lg:text-sm">
+                                  {event.title}
+                                </h3>
+                                {event.code && (
+                                  <div className="flex items-center gap-1">
+                                    <Badge type="neon" className="text-xs lg:text-[10px]">
+                                      {event.code}
+                                    </Badge>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(event.code);
+                                      }}
+                                      className="p-1 rounded hover:bg-primary/20 transition-colors"
+                                      title="Copy code"
+                                    >
+                                      <span className="material-symbols-outlined text-xs text-primary lg:text-[10px]">
+                                        content_copy
+                                      </span>
+                                    </button>
+                                  </div>
+                                )}
+                                {isCreated && (
+                                  <Badge type="gold" className="text-xs lg:text-[10px]">
+                                    {t("events.created")}
+                                  </Badge>
+                                )}
+                                {isJoined && (
+                                  <Badge type="neon" className="text-xs lg:text-[10px]">
+                                    {t("events.joinedBadge")}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-slate-300 lg:text-[11px]">
+                                <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
                                   location_on
                                 </span>
-                                <span>{event.location}</span>
+                                <span className="truncate">{event.location}</span>
                               </div>
                             </div>
-                            <Badge>{event.sport}</Badge>
+                            <Badge type="primary" className="ml-2 shrink-0">{event.sport}</Badge>
                           </div>
                           {event.description && (
-                            <p className="text-sm text-slate-300 mb-2 line-clamp-2">{event.description}</p>
+                            <p className="text-xs text-slate-300 mb-2 line-clamp-2 lg:text-[11px] lg:mb-1.5">
+                              {event.description}
+                            </p>
                           )}
-                          <div className="flex items-center gap-4 text-xs text-slate-400">
+                          <div className="flex items-center gap-3 flex-wrap lg:gap-2">
                             {event.price && (
-                              <div className="flex items-center gap-1">
-                                <span className="material-symbols-outlined text-base">payments</span>
-                                <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(event.price)}</span>
+                              <div className="flex items-center gap-1 bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-1 lg:px-1.5 lg:py-0.5">
+                                <span className="material-symbols-outlined text-sm text-green-400 lg:text-xs">
+                                  payments
+                                </span>
+                                <span className="text-xs font-semibold text-green-400 lg:text-[11px]">
+                                  {new Intl.NumberFormat("vi-VN", {
+                                    style: "currency",
+                                    currency: "VND",
+                                  }).format(event.price)}
+                                </span>
                               </div>
                             )}
-                            {event.skillLevel && event.skillLevel !== 'All' && (
-                              <div className="flex items-center gap-1">
-                                <span className="material-symbols-outlined text-base">trending_up</span>
-                                <span>{event.skillLevel}</span>
+                            {event.skillLevel && event.skillLevel !== "All" && (
+                              <div className="flex items-center gap-1 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-1 lg:px-1.5 lg:py-0.5">
+                                <span className="material-symbols-outlined text-sm text-purple-400 lg:text-xs">
+                                  trending_up
+                                </span>
+                                <span className="text-xs font-semibold text-purple-400 lg:text-[11px]">
+                                  {t(
+                                    `events.skillLevel.${event.skillLevel.toLowerCase()}`
+                                  )}
+                                </span>
                               </div>
                             )}
-                            <div className="flex items-center gap-1">
-                              <span className="material-symbols-outlined text-base">group</span>
-                              <span>{event.currentPlayers}/{event.maxPlayers} players</span>
+                            <div className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 lg:px-1.5 lg:py-0.5">
+                              <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
+                                group
+                              </span>
+                              <span className="text-xs font-semibold text-primary lg:text-[11px]">
+                                {event.currentPlayers}/{event.maxPlayers}
+                              </span>
                             </div>
                           </div>
                           {eventPlayers.length > 0 && (
-                            <div className="mt-3 flex items-center gap-2">
-                              <div className="flex -space-x-2">
-                                {eventPlayers.slice(0, 5).map((player) => (
+                            <div className="mt-2 flex items-center gap-2 lg:mt-1.5 lg:gap-1.5">
+                              <div className="flex -space-x-1.5 lg:-space-x-1">
+                                {eventPlayers.slice(0, 4).map((player) => (
                                   <Avatar
                                     key={player.id}
-                                    src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`}
-                                    size="h-6 w-6"
+                                    src={
+                                      player.avatar ||
+                                      `https://i.pravatar.cc/150?u=${player.id}`
+                                    }
+                                    size="h-6 w-6 lg:h-5 lg:w-5"
                                     className="border-surface"
                                   />
                                 ))}
-                                {eventPlayers.length > 5 && (
-                                  <div className="h-6 w-6 rounded-full bg-white/10 border-2 border-surface flex items-center justify-center text-[8px]">
-                                    +{eventPlayers.length - 5}
+                                {eventPlayers.length > 4 && (
+                                  <div className="h-6 w-6 rounded-full bg-white/10 border-2 border-surface flex items-center justify-center text-[9px] font-bold text-slate-300 lg:h-5 lg:w-5 lg:text-[8px]">
+                                    +{eventPlayers.length - 4}
                                   </div>
                                 )}
                               </div>
-                              <span className="text-xs text-slate-400">
-                                {eventPlayers.length} {eventPlayers.length === 1 ? 'player' : 'players'} joined
+                              <span className="text-[11px] text-slate-400 lg:text-[10px]">
+                                {eventPlayers.length}{" "}
+                                {eventPlayers.length === 1
+                                  ? t("events.playerJoined")
+                                  : t("events.playersJoined")}
                               </span>
                             </div>
                           )}
@@ -1024,43 +1394,55 @@ export const Home: React.FC = () => {
         )}
 
         {/* Calendar - Under sport type selection */}
-        {viewMode === 'calendar' && showCalendar && !selectedDay && (
-          <div className="px-0 pb-4 lg:pb-3 xl:pb-2 mt-4 lg:mt-3 xl:mt-2">
+        {viewMode === "calendar" && showCalendar && !selectedDay && (
+          <div className="px-0 pb-3 mt-3">
             {/* Calendar Navigation */}
-            <div className="flex items-center justify-between mb-4 lg:mb-3 xl:mb-2 relative" ref={monthYearPickerRef}>
+            <div
+              className="flex items-center justify-between mb-3 relative"
+              ref={monthYearPickerRef}
+            >
               <button
-                onClick={() => navigateMonth('prev')}
-                className="p-2 lg:p-1.5 xl:p-1 rounded-lg hover:bg-white/5 transition-colors"
+                onClick={() => navigateMonth("prev")}
+                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
-                <span className="material-symbols-outlined text-2xl lg:text-xl xl:text-lg">chevron_left</span>
+                <span className="material-symbols-outlined text-lg">
+                  chevron_left
+                </span>
               </button>
-              <div className="flex items-center gap-2 lg:gap-1.5 xl:gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setShowMonthYearPicker(!showMonthYearPicker)}
-                  className="text-xl lg:text-lg xl:text-base font-bold hover:text-primary transition-colors flex items-center gap-1"
+                  className="text-base font-bold hover:text-primary transition-colors flex items-center gap-1"
                 >
-                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                  <span className="material-symbols-outlined text-base lg:text-sm xl:text-xs">arrow_drop_down</span>
+                  {monthNames[currentMonth.getMonth()]}{" "}
+                  {currentMonth.getFullYear()}
+                  <span className="material-symbols-outlined text-sm">
+                    arrow_drop_down
+                  </span>
                 </button>
-                <button 
+                <button
                   onClick={goToToday}
-                  className="px-3 lg:px-2 xl:px-1.5 py-1 lg:py-0.5 xl:py-0.5 rounded-lg bg-primary/10 text-primary text-xs lg:text-[10px] xl:text-[10px] font-bold hover:bg-primary/20 transition-colors"
+                  className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors"
                 >
-                  Today
+                  {t("date.today")}
                 </button>
               </div>
               <button
-                onClick={() => navigateMonth('next')}
-                className="p-2 lg:p-1.5 xl:p-1 rounded-lg hover:bg-white/5 transition-colors"
+                onClick={() => navigateMonth("next")}
+                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
-                <span className="material-symbols-outlined text-2xl lg:text-xl xl:text-lg">chevron_right</span>
+                <span className="material-symbols-outlined text-lg">
+                  chevron_right
+                </span>
               </button>
 
               {/* Month/Year Picker Dropdown */}
               {showMonthYearPicker && (
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-surface border border-white/10 rounded-xl shadow-2xl p-4 min-w-[280px] max-h-[400px] overflow-y-auto">
                   <div className="mb-4">
-                    <h3 className="text-sm font-bold text-slate-300 mb-2">Select Year</h3>
+                    <h3 className="text-sm font-bold text-slate-300 mb-2">
+                      Select Year
+                    </h3>
                     <div className="grid grid-cols-4 gap-2">
                       {getYearRange().map((year) => (
                         <button
@@ -1068,8 +1450,8 @@ export const Home: React.FC = () => {
                           onClick={() => selectYear(year)}
                           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             currentMonth.getFullYear() === year
-                              ? 'bg-primary text-white'
-                              : 'bg-surface-light/50 text-slate-300 hover:bg-white/10'
+                              ? "bg-primary text-white"
+                              : "bg-surface-light/50 text-slate-300 hover:bg-white/10"
                           }`}
                         >
                           {year}
@@ -1078,7 +1460,9 @@ export const Home: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-300 mb-2">Select Month</h3>
+                    <h3 className="text-sm font-bold text-slate-300 mb-2">
+                      Select Month
+                    </h3>
                     <div className="grid grid-cols-3 gap-2">
                       {monthNames.map((month, index) => (
                         <button
@@ -1086,8 +1470,8 @@ export const Home: React.FC = () => {
                           onClick={() => selectMonth(index)}
                           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             currentMonth.getMonth() === index
-                              ? 'bg-primary text-white'
-                              : 'bg-surface-light/50 text-slate-300 hover:bg-white/10'
+                              ? "bg-primary text-white"
+                              : "bg-surface-light/50 text-slate-300 hover:bg-white/10"
                           }`}
                         >
                           {month}
@@ -1101,36 +1485,54 @@ export const Home: React.FC = () => {
 
             {/* Calendar Grid Headers */}
             <div className="grid grid-cols-7 gap-1 mb-2 lg:mb-1.5 xl:mb-1">
-              {dayNames.map(day => (
-                <div key={day} className="text-center text-xs lg:text-[10px] xl:text-[10px] font-bold text-slate-400 py-2 lg:py-1.5 xl:py-1">
+              {dayNames.map((day) => (
+                <div
+                  key={day}
+                  className="text-center text-xs lg:text-[10px] xl:text-[10px] font-bold text-slate-400 py-2 lg:py-1.5 xl:py-1"
+                >
                   {day}
                 </div>
               ))}
             </div>
 
             {/* Calendar Days Grid */}
-            <div className="grid grid-cols-7 gap-1">
+            <div
+              className="grid grid-cols-7 gap-1"
+              key={`calendar-${selectedFilter}`}
+            >
               {calendarDays.map((date, index) => {
                 const dayEvents = getEventsForDate(date);
                 const isTodayDate = isToday(date);
-                
+
                 return (
                   <div
                     key={index}
-                    className={`min-h-[80px] lg:min-h-[70px] xl:min-h-[60px] border border-white/5 rounded-lg lg:rounded-md xl:rounded-md p-1.5 lg:p-1 xl:p-0.5 ${
-                      date ? 'bg-surface/50 hover:bg-surface transition-colors cursor-pointer' : 'bg-transparent'
-                    } ${isTodayDate ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
+                    className={`min-h-[60px] border border-white/5 rounded-lg p-1 ${
+                      date
+                        ? "bg-surface/50 hover:bg-surface transition-colors cursor-pointer"
+                        : "bg-transparent"
+                    } ${
+                      isTodayDate
+                        ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
+                        : ""
+                    }`}
                     onClick={() => date && setSelectedDay(date)}
                   >
                     {date && (
                       <>
-                        <div className={`text-xs lg:text-[10px] xl:text-[9px] font-bold mb-1 lg:mb-0.5 xl:mb-0.5 ${
-                          isTodayDate ? 'text-primary' : date.getMonth() === currentMonth.getMonth() ? 'text-white' : 'text-slate-500'
-                        }`}>
+                        <div
+                          className={`text-[10px] font-bold mb-0.5 ${
+                            isTodayDate
+                              ? "text-primary"
+                              : date.getMonth() === currentMonth.getMonth()
+                              ? "text-white"
+                              : "text-slate-500"
+                          }`}
+                        >
                           {date.getDate()}
                         </div>
-                        <div className="space-y-0.5 lg:space-y-0.5 xl:space-y-0.5">
-                          {dayEvents.slice(0, 3).map((event) => {
+                        <div className="space-y-0.5">
+                          {dayEvents.slice(0, 2).map((event) => {
                             return (
                               <div
                                 key={event.id}
@@ -1138,16 +1540,16 @@ export const Home: React.FC = () => {
                                   e.stopPropagation();
                                   navigate(`/event/${event.id}`);
                                 }}
-                                className="bg-primary/20 border-primary/30 border rounded px-1.5 lg:px-1 xl:px-0.5 py-0.5 lg:py-0.5 xl:py-0.5 text-[10px] lg:text-[8px] xl:text-[7px] font-medium truncate cursor-pointer hover:opacity-80 transition-opacity text-primary"
+                                className="bg-primary/20 border-primary/30 border rounded px-1 py-0.5 text-[7px] font-medium truncate cursor-pointer hover:opacity-80 transition-opacity text-primary"
                                 title={event.title}
                               >
                                 <span className="truncate">{event.title}</span>
                               </div>
                             );
                           })}
-                          {dayEvents.length > 3 && (
-                            <div className="text-[10px] lg:text-[8px] xl:text-[7px] text-slate-400 px-1.5 lg:px-1 xl:px-0.5">
-                              +{dayEvents.length - 3} more
+                          {dayEvents.length > 2 && (
+                            <div className="text-[7px] text-slate-400 px-1">
+                              +{dayEvents.length - 2} {t('events.more')}
                             </div>
                           )}
                         </div>
@@ -1159,6 +1561,7 @@ export const Home: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1167,75 +1570,113 @@ export const Home: React.FC = () => {
 export const MyEvents: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { myEvents, events, getUserPendingRequest } = useEvents();
+  const {
+    myEvents,
+    events,
+    getUserPendingRequest,
+    getUserInvitations,
+    getEvent,
+  } = useEvents();
   const { getOrCreateChat } = useMessages();
-  const [eventPlayersMap, setEventPlayersMap] = useState<Record<string, User[]>>({});
+  const { t } = useLanguage();
+  const [eventPlayersMap, setEventPlayersMap] = useState<
+    Record<string, User[]>
+  >({});
+  const [activeTab, setActiveTab] = useState<
+    "upcoming-joined" | "past-joined" | "created" | "invited"
+  >("upcoming-joined");
+  const [createdFilter, setCreatedFilter] = useState<
+    "all" | "upcoming" | "past"
+  >("all");
+  const [upcomingFilter, setUpcomingFilter] = useState<
+    "all" | "created" | "joined"
+  >("all");
+  const [pastFilter, setPastFilter] = useState<"all" | "created" | "joined">(
+    "all"
+  );
+  const [invitations, setInvitations] = useState<EventRequest[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
+  const [selectedSportFilter, setSelectedSportFilter] = useState<string>("");
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
 
   // Separate events into three categories
   // Use all events, not just myEvents, to ensure we catch all created events
   // Memoize these to prevent infinite loops
-  const createdEvents = useMemo(() => 
-    events.filter(e => e.organizerId === user?.id),
+  const createdEvents = useMemo(
+    () => events.filter((e) => e.organizerId === user?.id),
     [events, user?.id]
   );
-  
-  const joinedEvents = useMemo(() => 
-    events.filter(e => 
-      e.organizerId !== user?.id && 
-      e.players.includes(user?.id || '')
-    ),
+
+  const joinedEvents = useMemo(
+    () =>
+      events.filter(
+        (e) => e.organizerId !== user?.id && e.players.includes(user?.id || "")
+      ),
     [events, user?.id]
   );
-  
+
   // Requested events: events that user requested to join but haven't been accepted yet
   // Note: We check for pending requests using the event_requests table via getUserPendingRequest
-  const [requestedEventIds, setRequestedEventIds] = useState<Set<string>>(new Set());
-  
+  const [requestedEventIds, setRequestedEventIds] = useState<Set<string>>(
+    new Set()
+  );
+
   useEffect(() => {
     const loadRequestedEvents = async () => {
       if (!user) {
         setRequestedEventIds(new Set());
         return;
       }
-      
+
       const requestedIds = new Set<string>();
       for (const event of events) {
-        if (event.organizerId !== user.id && 
-            !event.players.includes(user.id) && 
-            event.status === 'open') {
+        if (
+          event.organizerId !== user.id &&
+          !event.players.includes(user.id) &&
+          event.status === "open"
+        ) {
           try {
             const pendingRequest = await getUserPendingRequest(event.id);
             if (pendingRequest) {
               requestedIds.add(event.id);
             }
           } catch (error) {
-            console.error(`Error checking request for event ${event.id}:`, error);
+            console.error(
+              `Error checking request for event ${event.id}:`,
+              error
+            );
           }
         }
       }
       setRequestedEventIds(requestedIds);
     };
-    
+
     loadRequestedEvents();
   }, [events, user, getUserPendingRequest]);
-  
-  const requestedEvents = useMemo(() => 
-    events.filter(e => 
-      e.organizerId !== user?.id && 
-      !e.players.includes(user?.id || '') &&
-      requestedEventIds.has(e.id) &&
-      e.status === 'open'
-    ),
+
+  const requestedEvents = useMemo(
+    () =>
+      events.filter(
+        (e) =>
+          e.organizerId !== user?.id &&
+          !e.players.includes(user?.id || "") &&
+          requestedEventIds.has(e.id) &&
+          e.status === "open"
+      ),
     [events, user?.id, requestedEventIds]
   );
 
   // Get upcoming events (future dates) and past events separately
   // Memoize these to prevent infinite loops in useEffect
   const now = useMemo(() => new Date(), []);
-  
+
   const upcomingCreated = useMemo(() => {
     return createdEvents
-      .filter(e => {
+      .filter((e) => {
+        // Filter by sport if selected
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
         const eventDate = new Date(`${e.date}T${e.time}`);
         return eventDate >= now;
       })
@@ -1244,11 +1685,14 @@ export const MyEvents: React.FC = () => {
         const dateB = new Date(`${b.date}T${b.time}`);
         return dateA.getTime() - dateB.getTime();
       });
-  }, [createdEvents, now]);
+  }, [createdEvents, now, selectedSportFilter]);
 
   const pastCreated = useMemo(() => {
     return createdEvents
-      .filter(e => {
+      .filter((e) => {
+        // Filter by sport if selected
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
         const eventDate = new Date(`${e.date}T${e.time}`);
         return eventDate < now;
       })
@@ -1257,11 +1701,15 @@ export const MyEvents: React.FC = () => {
         const dateB = new Date(`${b.date}T${b.time}`);
         return dateB.getTime() - dateA.getTime();
       });
-  }, [createdEvents, now]);
+  }, [createdEvents, now, selectedSportFilter]);
 
   const upcomingJoined = useMemo(() => {
-    return joinedEvents
-      .filter(e => {
+    // Include both joined events and created events (owner is also a participant)
+    const allUpcomingEvents = [...joinedEvents, ...createdEvents]
+      .filter((e) => {
+        // Filter by sport if selected
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
         const eventDate = new Date(`${e.date}T${e.time}`);
         return eventDate >= now;
       })
@@ -1270,11 +1718,42 @@ export const MyEvents: React.FC = () => {
         const dateB = new Date(`${b.date}T${b.time}`);
         return dateA.getTime() - dateB.getTime();
       });
-  }, [joinedEvents, now]);
+
+    // Remove duplicates (in case an event appears in both arrays)
+    const uniqueEvents = Array.from(
+      new Map(allUpcomingEvents.map((e) => [e.id, e])).values()
+    );
+
+    return uniqueEvents;
+  }, [joinedEvents, createdEvents, now, selectedSportFilter]);
+
+  const pastJoined = useMemo(() => {
+    // Include both past joined events and past created events (owner is also a participant)
+    const allPastEvents = [...joinedEvents, ...createdEvents]
+      .filter((e) => {
+        // Filter by sport if selected
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
+        const eventDate = new Date(`${e.date}T${e.time}`);
+        return eventDate < now;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(`${a.date}T${a.time}`);
+        const dateB = new Date(`${b.date}T${b.time}`);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+    // Remove duplicates (in case an event appears in both arrays)
+    const uniqueEvents = Array.from(
+      new Map(allPastEvents.map((e) => [e.id, e])).values()
+    );
+
+    return uniqueEvents;
+  }, [joinedEvents, createdEvents, now, selectedSportFilter]);
 
   const upcomingRequested = useMemo(() => {
     return requestedEvents
-      .filter(e => {
+      .filter((e) => {
         const eventDate = new Date(`${e.date}T${e.time}`);
         return eventDate >= now;
       })
@@ -1290,9 +1769,19 @@ export const MyEvents: React.FC = () => {
     const loadEventPlayers = async () => {
       const map: Record<string, User[]> = {};
       const allPlayerIds = new Set<string>();
-      
-      [...upcomingCreated, ...pastCreated, ...upcomingJoined, ...upcomingRequested].forEach(event => {
-        event.players.forEach(playerId => allPlayerIds.add(playerId));
+
+      [
+        ...upcomingCreated,
+        ...pastCreated,
+        ...upcomingJoined,
+        ...pastJoined,
+        ...upcomingRequested,
+      ].forEach((event) => {
+        // Add organizer as a player if not already in the list
+        if (event.organizerId && !event.players.includes(event.organizerId)) {
+          allPlayerIds.add(event.organizerId);
+        }
+        event.players.forEach((playerId) => allPlayerIds.add(playerId));
       });
 
       if (allPlayerIds.size === 0) {
@@ -1309,542 +1798,913 @@ export const MyEvents: React.FC = () => {
         }
       });
 
-      const players = (await Promise.all(playerPromises)).filter((p): p is User => p !== null);
-      const playersById = new Map(players.map(p => [p.id, p]));
+      const players = (await Promise.all(playerPromises)).filter(
+        (p): p is User => p !== null
+      );
+      const playersById = new Map(players.map((p) => [p.id, p]));
 
-      [...upcomingCreated, ...pastCreated, ...upcomingJoined, ...upcomingRequested].forEach(event => {
+      [
+        ...upcomingCreated,
+        ...pastCreated,
+        ...upcomingJoined,
+        ...pastJoined,
+        ...upcomingRequested,
+      ].forEach((event) => {
         map[event.id] = event.players
-          .map(playerId => playersById.get(playerId))
+          .map((playerId) => playersById.get(playerId))
           .filter((p): p is User => p !== undefined);
       });
 
       setEventPlayersMap(map);
     };
 
-    if (upcomingCreated.length > 0 || pastCreated.length > 0 || upcomingJoined.length > 0 || upcomingRequested.length > 0) {
+    if (
+      upcomingCreated.length > 0 ||
+      pastCreated.length > 0 ||
+      upcomingJoined.length > 0 ||
+      pastJoined.length > 0 ||
+      upcomingRequested.length > 0
+    ) {
       loadEventPlayers();
     }
-  }, [upcomingCreated, pastCreated, upcomingJoined, upcomingRequested]);
+  }, [
+    upcomingCreated,
+    pastCreated,
+    upcomingJoined,
+    pastJoined,
+    upcomingRequested,
+  ]);
 
-
-  const formatEventTime = (date: string, time: string) => {
+  const formatEventTime = (date: string, time: string, endTime?: string) => {
     const eventDate = new Date(`${date}T${time}`);
     const now = new Date();
     const diff = eventDate.getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return `Today, ${time}`;
-    if (days === 1) return `Tomorrow, ${time}`;
-    return `${new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })}, ${time}`;
+    const formatTimeForEvent = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(":");
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
+      const displayHour = hour % 12 || 12;
+      return `${displayHour}:${minutes} ${ampm}`;
+    };
+
+    const timeStr = endTime
+      ? `${formatTimeForEvent(time)} - ${formatTimeForEvent(endTime)}`
+      : formatTimeForEvent(time);
+    const dayNames = [
+      t("date.days.sunday"),
+      t("date.days.monday"),
+      t("date.days.tuesday"),
+      t("date.days.wednesday"),
+      t("date.days.thursday"),
+      t("date.days.friday"),
+      t("date.days.saturday"),
+    ];
+    const dayName = dayNames[eventDate.getDay()];
+
+    if (days === 0) return `${t("date.today")} (${dayName}), ${timeStr}`;
+    if (days === 1) return `${t("date.tomorrow")} (${dayName}), ${timeStr}`;
+    const dateObj = new Date(date);
+    const monthNames = [
+      t("date.months.january"),
+      t("date.months.february"),
+      t("date.months.march"),
+      t("date.months.april"),
+      t("date.months.may"),
+      t("date.months.june"),
+      t("date.months.july"),
+      t("date.months.august"),
+      t("date.months.september"),
+      t("date.months.october"),
+      t("date.months.november"),
+      t("date.months.december"),
+    ];
+    const monthName = monthNames[dateObj.getMonth()];
+    return `${dayName}, ${dateObj.getDate()} ${monthName}, ${timeStr}`;
   };
 
   const formatShortDate = (date: string, time: string) => {
     const eventDate = new Date(`${date}T${time}`);
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const [hours, minutes] = time.split(':');
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const [hours, minutes] = time.split(":");
     const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
     const displayHour = hour % 12 || 12;
     return `${days[eventDate.getDay()]}, ${displayHour}:${minutes} ${ampm}`;
   };
 
   const getSportIcon = (sport: string) => {
     const iconMap: Record<string, string> = {
-      'Tennis': 'sports_tennis',
-      'Pickleball': 'sports_tennis',
-      'Badminton': 'sports_tennis',
-      'Basketball': 'sports_basketball',
-      'Soccer': 'sports_soccer',
-      'Volleyball': 'sports_volleyball',
+      Tennis: "sports_tennis",
+      Pickleball: "sports_tennis",
+      Badminton: "sports_tennis",
+      Basketball: "sports_basketball",
+      Soccer: "sports_soccer",
+      Volleyball: "sports_volleyball",
     };
-    return iconMap[sport] || 'sports';
+    return iconMap[sport] || "sports";
   };
 
-  const handleMessagePlayers = async (event: Event, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user || !event.players.length) return;
-    
-    // For now, message the organizer. In a full implementation, this could open a group chat
-    try {
-      const chatId = await getOrCreateChat(event.organizerId);
-      navigate(`/chat/${chatId}`);
-    } catch (err) {
-      console.error('Failed to open chat:', err);
+  const getSportImage = (sport: string) => {
+    const imageMap: Record<string, string> = {
+      Tennis:
+        "https://images.unsplash.com/photo-1622163642992-6c65f9a7d7c6?w=400&h=400&fit=crop",
+      Pickleball:
+        "https://images.unsplash.com/photo-1635776062043-223faf322554?w=400&h=400&fit=crop",
+      Badminton:
+        "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=400&h=400&fit=crop",
+      Basketball:
+        "https://images.unsplash.com/photo-1546519638-70e1e7366b59?w=400&h=400&fit=crop",
+      Soccer:
+        "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=400&h=400&fit=crop",
+      Volleyball:
+        "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=400&h=400&fit=crop",
+    };
+    return (
+      imageMap[sport] ||
+      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=400&fit=crop"
+    );
+  };
+
+  // Load sports
+  useEffect(() => {
+    const loadSports = async () => {
+      try {
+        const sportsData = await sportsService.getAllSports();
+        setSports(sportsData);
+      } catch (err) {
+        console.error("Error loading sports:", err);
+      } finally {
+        setSportsLoading(false);
+      }
+    };
+
+    loadSports();
+  }, []);
+
+  // Load invitations
+  useEffect(() => {
+    const loadInvitations = async () => {
+      if (!user) {
+        setInvitations([]);
+        setLoadingInvitations(false);
+        return;
+      }
+
+      try {
+        const invs = await getUserInvitations();
+        setInvitations(invs);
+      } catch (error) {
+        console.error("Error loading invitations:", error);
+        setInvitations([]);
+      } finally {
+        setLoadingInvitations(false);
+      }
+    };
+
+    loadInvitations();
+  }, [user, getUserInvitations]);
+
+  // Get invited events from invitations
+  const invitedEvents = useMemo(() => {
+    return invitations
+      .map((inv) => getEvent(inv.eventId))
+      .filter((e): e is Event => e !== undefined)
+      .filter((e) => {
+        // Filter by sport if selected
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(`${a.date}T${a.time}`);
+        const dateB = new Date(`${b.date}T${b.time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+  }, [invitations, getEvent, selectedSportFilter]);
+
+  // Unified Event Card Component
+  const EventCard: React.FC<{
+    event: Event;
+    variant?: "default" | "past" | "created" | "invited";
+    onClick?: () => void;
+    showActions?: boolean;
+  }> = ({ event, variant = "default", onClick, showActions = true }) => {
+    const eventPlayers = eventPlayersMap[event.id] || [];
+    const spotsLeft = event.maxPlayers - event.currentPlayers;
+    const isPast = variant === "past";
+    // Check if event is created by user (either from variant or by checking organizerId)
+    const isCreated = variant === "created" || event.organizerId === user?.id;
+    const isInvited = variant === "invited";
+
+    return (
+      <div
+        onClick={onClick}
+        className={`bg-surface rounded-xl p-3 border transition-all cursor-pointer group relative lg:rounded-lg lg:p-2 ${
+          isPast
+            ? "opacity-60 border-white/5"
+            : isInvited
+            ? "border-yellow-500/20 hover:border-yellow-500/40"
+            : "border-white/5 hover:border-primary/30"
+        }`}
+      >
+        {/* Settings Button - Top Right */}
+        {showActions && !isPast && isCreated && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/event/manage/${event.id}`);
+            }}
+            className="absolute top-2 right-2 w-7 h-7 bg-white/5 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors z-10 lg:top-1.5 lg:right-1.5 lg:w-6 lg:h-6"
+          >
+            <span className="material-symbols-outlined text-sm lg:text-xs">settings</span>
+          </button>
+        )}
+        <div className="flex gap-3 lg:gap-2">
+          {/* Event Image/Icon */}
+          <div className="shrink-0 relative">
+            {/* Hidden badge to set container width */}
+            <div className="invisible">
+              <Badge>{event.sport}</Badge>
+            </div>
+            {/* Image - matches badge width */}
+            <div
+              className="absolute top-0 left-0 w-full rounded-lg bg-cover bg-center flex items-center justify-center overflow-hidden"
+              style={{
+                aspectRatio: "1 / 1",
+                backgroundImage: event.image
+                  ? `url(${event.image})`
+                  : `url(https://i.pravatar.cc/150?u=${event.organizerId})`,
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            </div>
+            {/* Sport Badge Overlay - top left corner */}
+            <div className="absolute top-0 left-0 z-10">
+              <Badge>{event.sport}</Badge>
+            </div>
+          </div>
+
+          {/* Event Details */}
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div
+              className={`flex justify-between items-start mb-1.5 ${
+                showActions && !isPast && isCreated ? "pr-10" : ""
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-sm mb-0.5 group-hover:text-primary transition-colors line-clamp-1 lg:text-xs lg:mb-0">
+                  {event.title}
+                </h3>
+                <div className="flex items-center gap-1.5 flex-wrap lg:gap-1">
+                  {isCreated && (
+                    <Badge type="gold">{t("events.created")}</Badge>
+                  )}
+                  {isInvited && (
+                    <Badge type="neon">{t("events.invited")}</Badge>
+                  )}
+                  {!isCreated && !isInvited && (
+                    <Badge type="neon">{t("events.joinedBadge")}</Badge>
+                  )}
+                  {spotsLeft > 0 && !isPast && (
+                    <span className="text-[10px] text-slate-400 lg:text-[9px]">
+                      {spotsLeft}{" "}
+                      {spotsLeft !== 1
+                        ? t("events.spotsLeft")
+                        : t("events.spotLeft")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {isCreated && (
+                <div className="text-right shrink-0 ml-2 lg:ml-1">
+                  <div className="text-xs font-bold text-primary lg:text-[11px]">
+                    {event.currentPlayers}/{event.maxPlayers}
+                  </div>
+                  <div className="text-[10px] text-slate-400 lg:text-[9px]">
+                    {t("events.players")}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Event Info */}
+            <div className="space-y-1 text-xs lg:space-y-0.5 lg:text-[11px]">
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <span className="material-symbols-outlined text-primary text-sm shrink-0">
+                  event
+                </span>
+                <span className="truncate">
+                  {formatEventTime(event.date, event.time, event.endTime)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <span className="material-symbols-outlined text-primary text-sm shrink-0">
+                  location_on
+                </span>
+                <span className="truncate">{event.location}</span>
+              </div>
+              {event.price && (
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <span className="material-symbols-outlined text-primary text-sm shrink-0">
+                    payments
+                  </span>
+                  <span>
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(event.price)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Players Preview (for joined events) */}
+            {!isCreated && eventPlayers.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <div className="flex -space-x-1.5">
+                  {eventPlayers.slice(0, 4).map((player) => (
+                    <Avatar
+                      key={player.id}
+                      src={
+                        player.avatar ||
+                        `https://i.pravatar.cc/150?u=${player.id}`
+                      }
+                      size="h-5 w-5"
+                      className="border-2 border-surface"
+                    />
+                  ))}
+                  {eventPlayers.length > 4 && (
+                    <div className="h-5 w-5 rounded-full bg-white/10 border-2 border-surface flex items-center justify-center text-[9px] font-bold">
+                      +{eventPlayers.length - 4}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  {eventPlayers.length}{" "}
+                  {eventPlayers.length !== 1
+                    ? t("events.players")
+                    : t("events.player")}
+                </span>
+              </div>
+            )}
+
+            {/* Actions */}
+            {showActions && !isPast && !isCreated && (
+              <div className="mt-2 flex gap-1.5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/event/${event.id}`);
+                  }}
+                  className="flex-1 bg-primary/10 hover:bg-primary/20 text-primary h-7 rounded-lg text-[10px] font-bold transition-colors"
+                >
+                  {t("events.viewDetails")}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render events based on active tab
+  const renderEvents = () => {
+    switch (activeTab) {
+      case "upcoming-joined":
+        // Filter events based on selected filter
+        const filteredUpcoming = upcomingJoined.filter((event) => {
+          const isCreated = event.organizerId === user?.id;
+          if (upcomingFilter === "created") return isCreated;
+          if (upcomingFilter === "joined") return !isCreated;
+          return true; // "all"
+        });
+
+        return (
+          <>
+            {/* Filter Buttons */}
+            <div className="flex gap-1.5 mb-3">
+              <button
+                onClick={() => setUpcomingFilter("all")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  upcomingFilter === "all"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.all")}
+              </button>
+              <button
+                onClick={() => setUpcomingFilter("created")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  upcomingFilter === "created"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.created")}
+              </button>
+              <button
+                onClick={() => setUpcomingFilter("joined")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  upcomingFilter === "joined"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.joined")}
+              </button>
+            </div>
+
+            {/* Events List */}
+            {filteredUpcoming.length > 0 ? (
+              <div className="space-y-2">
+                {filteredUpcoming.map((event) => {
+                  const isCreated = event.organizerId === user?.id;
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      variant={isCreated ? "created" : "default"}
+                      onClick={() =>
+                        navigate(
+                          isCreated
+                            ? `/event/manage/${event.id}`
+                            : `/event/${event.id}`
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                  event_available
+                </span>
+                <p className="text-lg font-medium mb-1">{t('events.noUpcoming')}</p>
+                <p className="text-sm">
+                  {upcomingFilter === "created"
+                    ? t('events.noUpcomingCreated')
+                    : upcomingFilter === "joined"
+                    ? t('events.noUpcomingJoined')
+                    : t('events.joinFromHome')}
+                </p>
+              </div>
+            )}
+          </>
+        );
+
+      case "past-joined":
+        // Filter events based on selected filter
+        const filteredPast = pastJoined.filter((event) => {
+          const isCreated = event.organizerId === user?.id;
+          if (pastFilter === "created") return isCreated;
+          if (pastFilter === "joined") return !isCreated;
+          return true; // "all"
+        });
+
+        return (
+          <>
+            {/* Filter Buttons */}
+            <div className="flex gap-1.5 mb-3">
+              <button
+                onClick={() => setPastFilter("all")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  pastFilter === "all"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.all")}
+              </button>
+              <button
+                onClick={() => setPastFilter("created")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  pastFilter === "created"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.created")}
+              </button>
+              <button
+                onClick={() => setPastFilter("joined")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  pastFilter === "joined"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.joined")}
+              </button>
+            </div>
+
+            {/* Events List */}
+            {filteredPast.length > 0 ? (
+              <div className="space-y-2">
+                {filteredPast.map((event) => {
+                  const isCreated = event.organizerId === user?.id;
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      variant="past"
+                      onClick={() =>
+                        navigate(
+                          isCreated
+                            ? `/event/manage/${event.id}`
+                            : `/event/${event.id}`
+                        )
+                      }
+                      showActions={false}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                  history
+                </span>
+                <p className="text-lg font-medium mb-1">{t("events.noPast")}</p>
+                <p className="text-sm">
+                  {pastFilter === "created"
+                    ? t("events.noPastCreated")
+                    : pastFilter === "joined"
+                    ? t("events.noPastJoined")
+                    : t("events.pastHistory")}
+                </p>
+              </div>
+            )}
+          </>
+        );
+
+      case "created":
+        // Filter events based on selected filter
+        const filteredCreated = (() => {
+          if (createdFilter === "upcoming") return upcomingCreated;
+          if (createdFilter === "past") return pastCreated;
+          return [...upcomingCreated, ...pastCreated]; // "all"
+        })();
+
+        return (
+          <>
+            {/* Filter Buttons */}
+            <div className="flex gap-1.5 mb-3">
+              <button
+                onClick={() => setCreatedFilter("all")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  createdFilter === "all"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.all")}
+                {upcomingCreated.length + pastCreated.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {upcomingCreated.length + pastCreated.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setCreatedFilter("upcoming")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  createdFilter === "upcoming"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.upcoming")}
+                {upcomingCreated.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {upcomingCreated.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setCreatedFilter("past")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  createdFilter === "past"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.past")}
+                {pastCreated.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {pastCreated.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Events List */}
+            {filteredCreated.length > 0 ? (
+              <div className="space-y-2">
+                {filteredCreated.map((event) => {
+                  const isPast =
+                    new Date(`${event.date}T${event.time}`) < new Date();
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      variant={isPast ? "past" : "created"}
+                      onClick={() => navigate(`/event/manage/${event.id}`)}
+                      showActions={!isPast}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                  {createdFilter === "upcoming"
+                    ? "event_available"
+                    : createdFilter === "past"
+                    ? "history"
+                    : "add_circle_outline"}
+                </span>
+                <p className="text-lg font-medium mb-1">
+                  {createdFilter === "upcoming"
+                    ? t("events.noUpcoming")
+                    : createdFilter === "past"
+                    ? t("events.noPast")
+                    : t("events.noCreatedYet")}
+                </p>
+                <p className="text-sm">
+                  {createdFilter === "upcoming"
+                    ? t("events.noUpcomingCreatedYet")
+                    : createdFilter === "past"
+                    ? t("events.pastCreatedAppear")
+                    : t("events.createFirstEvent")}
+                </p>
+                {createdFilter !== "past" && (
+                  <button
+                    onClick={() => navigate("/event/create")}
+                    className="mt-4 px-6 py-2 bg-primary hover:bg-primary-hover rounded-lg font-bold text-sm transition-colors"
+                  >
+                    {t("events.create")}
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        );
+
+      case "invited":
+        return loadingInvitations ? (
+          <div className="text-center py-16 text-slate-400">
+            <span className="material-symbols-outlined text-6xl mb-4 block opacity-50 animate-pulse">
+              hourglass_empty
+            </span>
+            <p className="text-lg font-medium">
+              {t("events.loadingInvitations")}
+            </p>
+          </div>
+        ) : invitedEvents.length > 0 ? (
+          <div className="space-y-2">
+            {invitedEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                variant="invited"
+                onClick={() => navigate(`/event/${event.id}`)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-16 text-slate-400">
+            <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+              mail_outline
+            </span>
+            <p className="text-lg font-medium mb-1">
+              {t("events.noInvitations")}
+            </p>
+            <p className="text-sm">{t("events.invitationsHint")}</p>
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
-
   return (
     <div className="flex flex-col pb-24">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl border-b border-white/5 px-5 pt-8 pb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-extrabold tracking-tight">My Events</h1>
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl border-b border-white/5 px-5 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-xl font-extrabold tracking-tight">
+            {t("events.myEvents")}
+          </h1>
+        </div>
+
+        {/* Sport Filter */}
+        <div className="flex gap-1.5 overflow-x-auto pb-3 mb-2 no-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button
+            key="all"
+            type="button"
+            onClick={() => setSelectedSportFilter("")}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+              selectedSportFilter === ""
+                ? "bg-white text-black"
+                : "bg-surface text-slate-300 border border-white/5"
+            }`}
+          >
+            {t("events.filter.all")}
+          </button>
+          {sportsLoading ? (
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-surface text-slate-300 border border-white/5 animate-pulse">
+              {t("common.loading")}
+            </div>
+          ) : (
+            sports.map((sport) => {
+              const getSportIcon = (sportName: string) => {
+                const sportData = sports.find((s) => s.name === sportName);
+                if (sportData) return sportData.icon;
+                // Fallback icons
+                const iconMap: Record<string, string> = {
+                  Tennis: "sports_tennis",
+                  Pickleball: "sports_tennis",
+                  Badminton: "sports_tennis",
+                  Basketball: "sports_basketball",
+                  Soccer: "sports_soccer",
+                  Volleyball: "sports_volleyball",
+                };
+                return iconMap[sportName] || "sports";
+              };
+
+              return (
+                <button
+                  key={sport.id}
+                  type="button"
+                  onClick={() => setSelectedSportFilter(sport.name)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                    selectedSportFilter === sport.name
+                      ? "bg-white text-black"
+                      : "bg-surface text-slate-300 border border-white/5"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">
+                    {sport.icon || getSportIcon(sport.name)}
+                  </span>
+                  {sport.name}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button
+            onClick={() => setActiveTab("upcoming-joined")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "upcoming-joined"
+                ? "bg-primary text-white shadow-lg shadow-primary/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">
+              event_available
+            </span>
+            <span>{t("events.myUpcoming")}</span>
+            {upcomingJoined.length > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "upcoming-joined"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}
+              >
+                {upcomingJoined.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("past-joined")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "past-joined"
+                ? "bg-primary text-white shadow-lg shadow-primary/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">history</span>
+            <span>{t("events.myPast")}</span>
+            {pastJoined.length > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "past-joined"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}
+              >
+                {pastJoined.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("created")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "created"
+                ? "bg-primary text-white shadow-lg shadow-primary/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">star</span>
+            <span>{t("events.iCreated")}</span>
+            {upcomingCreated.length + pastCreated.length > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "created"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}
+              >
+                {upcomingCreated.length + pastCreated.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("invited")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "invited"
+                ? "bg-yellow-500 text-white shadow-lg shadow-yellow-500/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">mail</span>
+            <span>{t("events.invitations")}</span>
+            {invitedEvents.length > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "invited"
+                    ? "bg-white/20 text-white"
+                    : "bg-yellow-500/20 text-yellow-500"
+                }`}
+              >
+                {invitedEvents.length}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
-
       <div className="px-5 py-6 space-y-6 w-full border-t border-white/5 mt-4">
-        {(upcomingCreated.length > 0 || pastCreated.length > 0) && (
-          <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                Created Events{" "}
-                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                  {upcomingCreated.length + pastCreated.length}
-                </span>
-              </h2>
-            </div>
-
-            {upcomingCreated.length > 0 && (
-              <>
-                {upcomingCreated.map((event) => {
-              const eventPlayers = eventPlayersMap[event.id] || [];
-              const spotsLeft = event.maxPlayers - event.currentPlayers;
-              
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => navigate(`/event/manage/${event.id}`)}
-                  className="bg-surface rounded-2xl p-4 border border-white/5 hover:border-primary/30 transition-all cursor-pointer group"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex gap-3">
-                      <Badge type="gold">Created</Badge>
-                      <Badge>{event.sport}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">
-                        {event.title}
-                      </h3>
-                      <div className="space-y-1 text-sm text-slate-400">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-sm">
-                            event
-                          </span>{" "}
-                          {formatEventTime(event.date, event.time)}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-sm">
-                            location_on
-                          </span>{" "}
-                          {event.location}
-                        </div>
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <button 
-                          onClick={(e) => handleMessagePlayers(event, e)}
-                          className="flex-1 bg-primary h-9 rounded-lg text-sm font-bold shadow-lg shadow-primary/20"
-                        >
-                          Message Players
-                        </button>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/event/manage/${event.id}`);
-                          }}
-                          className="w-9 h-9 bg-white/5 rounded-lg flex items-center justify-center"
-                        >
-                          <span className="material-symbols-outlined text-sm">
-                            more_horiz
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                    <div
-                      className="w-24 h-32 rounded-xl bg-cover bg-center relative overflow-hidden"
-                      style={{
-                        backgroundImage: event.image 
-                          ? `url(${event.image})`
-                          : "url(https://images.unsplash.com/photo-1519861531473-920026393112)",
-                      }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                      <div className="absolute bottom-2 right-2 text-right">
-                        <div className="text-white font-bold text-xs">{event.currentPlayers}/{event.maxPlayers}</div>
-                        <div className="text-[9px] text-slate-300">Players</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-              </>
-            )}
-
-            {pastCreated.length > 0 && (
-              <>
-                <div className="mt-6 mb-2">
-                  <h3 className="text-sm font-bold text-slate-400">Past Events</h3>
-                </div>
-                {pastCreated.map((event) => {
-              const eventPlayers = eventPlayersMap[event.id] || [];
-              const spotsLeft = event.maxPlayers - event.currentPlayers;
-              
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => navigate(`/event/manage/${event.id}`)}
-                  className="bg-surface rounded-2xl p-4 border border-white/5 hover:border-primary/30 transition-all cursor-pointer group opacity-60"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex gap-3">
-                      <Badge type="gold">Created</Badge>
-                      <Badge>{event.sport}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">
-                        {event.title}
-                      </h3>
-                      <div className="space-y-1 text-sm text-slate-400">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-sm">
-                            event
-                          </span>{" "}
-                          {formatEventTime(event.date, event.time)}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-sm">
-                            location_on
-                          </span>{" "}
-                          {event.location}
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      className="w-24 h-32 rounded-xl bg-cover bg-center relative overflow-hidden"
-                      style={{
-                        backgroundImage: event.image 
-                          ? `url(${event.image})`
-                          : "url(https://images.unsplash.com/photo-1519861531473-920026393112)",
-                      }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                      <div className="absolute bottom-2 right-2 text-right">
-                        <div className="text-white font-bold text-xs">{event.currentPlayers}/{event.maxPlayers}</div>
-                        <div className="text-[9px] text-slate-300">Players</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-              </>
-            )}
-          </>
-        )}
-
-        {upcomingRequested.length > 0 && (
-          <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                Requested Events{" "}
-                <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 text-xs">
-                  {upcomingRequested.length}
-                </span>
-              </h2>
-            </div>
-
-            {upcomingRequested.map((event) => {
-              const eventPlayers = eventPlayersMap[event.id] || [];
-              
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => navigate(`/event/${event.id}`)}
-                  className="bg-surface rounded-2xl p-4 border border-yellow-500/20 hover:border-yellow-500/40 transition-all cursor-pointer flex gap-4 items-center"
-                >
-                  <div
-                    className="w-16 h-16 rounded-xl bg-cover bg-center shrink-0 flex items-center justify-center"
-                    style={{
-                      backgroundImage: event.image 
-                        ? `url(${event.image})`
-                        : "url(https://images.unsplash.com/photo-1622279457486-62dcc4a431d6)",
-                    }}
-                  >
-                    {!event.image && (
-                      <span className="material-symbols-outlined text-3xl text-white/50">
-                        {getSportIcon(event.sport)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-bold">{event.title}</h3>
-                      <Badge type="neon">Pending</Badge>
-                    </div>
-                    <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
-                        location_on
-                      </span>{" "}
-                      {event.location} • {formatShortDate(event.date, event.time)}
-                    </div>
-                    <div className="mt-2 flex justify-end">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/event/${event.id}`);
-                        }}
-                        className="text-xs font-bold text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {upcomingJoined.length > 0 && (
-          <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                Joined Events{" "}
-                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
-                  {upcomingJoined.length}
-                </span>
-              </h2>
-            </div>
-
-            {upcomingJoined.map((event) => {
-              const eventPlayers = eventPlayersMap[event.id] || [];
-              
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => navigate(`/event/${event.id}`)}
-                  className="bg-surface rounded-2xl p-4 border border-white/5 hover:border-primary/30 transition-all cursor-pointer flex gap-4 items-center"
-                >
-                  <div
-                    className="w-16 h-16 rounded-xl bg-cover bg-center shrink-0 flex items-center justify-center"
-                    style={{
-                      backgroundImage: event.image 
-                        ? `url(${event.image})`
-                        : "url(https://images.unsplash.com/photo-1622279457486-62dcc4a431d6)",
-                    }}
-                  >
-                    {!event.image && (
-                      <span className="material-symbols-outlined text-3xl text-white/50">
-                        {getSportIcon(event.sport)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-bold">{event.title}</h3>
-                      <Badge type="neon">Joined</Badge>
-                    </div>
-                    <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
-                        location_on
-                      </span>{" "}
-                      {event.location} • {formatShortDate(event.date, event.time)}
-                    </div>
-                    {eventPlayers.length > 0 && (
-                      <div className="mt-2 flex justify-between items-center">
-                        <div className="flex -space-x-2">
-                          {eventPlayers.slice(0, 3).map((player) => (
-                            <Avatar
-                              key={player.id}
-                              src={player.avatar || `https://i.pravatar.cc/150?u=${player.id}`}
-                              size="h-5 w-5"
-                              className="border-surface"
-                            />
-                          ))}
-                          {eventPlayers.length > 3 && (
-                            <div className="h-5 w-5 rounded-full bg-white/10 border-2 border-surface flex items-center justify-center text-[8px]">
-                              +{eventPlayers.length - 3}
-                            </div>
-                          )}
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/event/${event.id}`);
-                          }}
-                          className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full"
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {createdEvents.length === 0 && joinedEvents.length === 0 && requestedEvents.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
-            <p>No events yet. Create or join an event to get started!</p>
-          </div>
-        )}
+        {renderEvents()}
       </div>
     </div>
   );
 };
 
 export const Messages: React.FC = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { chats, getOrCreateChat } = useMessages();
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredChats = chats.filter((chat) => {
-    if (!searchQuery) return true;
-    // In a real app, would search through message content and participant names
-    return true;
-  });
-
-  const handleChatClick = async (otherUserId: string) => {
-    try {
-      const chatId = await getOrCreateChat(otherUserId);
-      navigate(`/chat/${chatId}`);
-    } catch (err) {
-      console.error("Failed to open chat", err);
-    }
-  };
-
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (minutes < 1) return "Just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days === 1) return "Yesterday";
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
+  const { t } = useLanguage();
 
   return (
     <div className="flex flex-col h-full bg-background pb-20">
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/5 pt-8 px-5 pb-4">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-extrabold">Messages</h1>
-          <button className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-            <span className="material-symbols-outlined">edit_square</span>
-          </button>
-        </div>
-        <div className="relative">
-          <span className="absolute inset-y-0 left-3 flex items-center text-slate-500">
-            <span className="material-symbols-outlined text-[20px]">
-              search
-            </span>
-          </span>
-          <input
-            type="text"
-            placeholder="Search teammates..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-surface rounded-xl py-2.5 pl-10 pr-4 text-white placeholder:text-slate-500 border border-white/5 focus:border-primary/50 outline-none"
-          />
+          <h1 className="text-3xl font-extrabold">{t("pages.messages")}</h1>
         </div>
       </header>
 
-      <div className="flex gap-4 px-5 py-4 overflow-x-auto no-scrollbar border-b border-white/5">
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <div className="w-[60px] h-[60px] rounded-full border-2 border-dashed border-slate-600 flex items-center justify-center bg-surface text-slate-400">
-            <span className="material-symbols-outlined">add</span>
+      <main className="flex-1 flex items-center justify-center p-4 lg:p-6">
+        <div className="text-center lg:max-w-md">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center lg:w-16 lg:h-16 lg:mb-4">
+            <span className="material-symbols-outlined text-4xl text-primary lg:text-3xl">
+              chat_bubble
+            </span>
           </div>
-          <span className="text-xs text-slate-400">My Status</span>
+          <h2 className="text-2xl font-bold mb-2 lg:text-xl lg:mb-1.5">{t("pages.comingSoon")}</h2>
+          <p className="text-slate-400 lg:text-sm">{t("pages.chatUnderDevelopment")}</p>
         </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex flex-col items-center gap-1 shrink-0">
-            <div
-              className={`w-[60px] h-[60px] rounded-full p-[2px] ${
-                i === 1
-                  ? "bg-gradient-to-tr from-primary to-[#39FF14]"
-                  : "bg-surface border border-white/10"
-              }`}
-            >
-              <img
-                src={`https://i.pravatar.cc/150?u=${i + 10}`}
-                className="w-full h-full rounded-full object-cover border-2 border-background"
-                alt=""
-              />
-            </div>
-            <span className="text-xs text-white">Name</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col">
-        {filteredChats.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 px-5">
-            <p>No messages yet. Start a conversation!</p>
-          </div>
-        ) : (
-          filteredChats.map((chat) => {
-            const otherParticipantId = chat.participants.find(
-              (p) => p !== user?.id
-            );
-            const otherUser = otherParticipantId
-              ? userService.getUser(otherParticipantId)
-              : undefined;
-
-            if (!otherUser) return null;
-
-            return (
-              <div
-                key={chat.id}
-                onClick={() => navigate(`/chat/${chat.id}`)}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-white/5 cursor-pointer transition-colors relative"
-              >
-                <Avatar
-                  src={
-                    otherUser.avatar ||
-                    `https://i.pravatar.cc/150?u=${otherUser.id}`
-                  }
-                  size="h-14 w-14"
-                />
-          <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-center mb-0.5">
-                    <h3 className="font-bold text-white truncate">
-                      {otherUser.firstName} {otherUser.lastName}
-                    </h3>
-                    {chat.lastMessage && (
-                      <span className="text-xs text-slate-500">
-                        {formatTime(chat.lastMessage.timestamp)}
-                      </span>
-                    )}
-            </div>
-            <div className="flex justify-between items-center">
-                    <p className="text-sm text-slate-400 font-medium truncate pr-4">
-                      {chat.lastMessage?.content || "No messages yet"}
-                    </p>
-                    {chat.unreadCount > 0 && (
-              <div className="w-2.5 h-2.5 rounded-full bg-primary shrink-0"></div>
-                    )}
-            </div>
-          </div>
-        </div>
-            );
-          })
-        )}
-      </div>
+      </main>
     </div>
   );
 };
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isLoading, signOut } = useAuth();
-  const { events } = useEvents();
-  const { getOrCreateChat } = useMessages();
+  const { user, isLoading, signOut, refreshUser } = useAuth();
+  const { events, getUserInvitations, acceptInvitation } = useEvents();
+  const { t } = useLanguage();
   const [friends, setFriends] = useState<User[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
   const [sports, setSports] = useState<Sport[]>([]);
@@ -1856,7 +2716,7 @@ export const Profile: React.FC = () => {
         const sportsData = await sportsService.getAllSports();
         setSports(sportsData);
       } catch (err) {
-        console.error('Error loading sports:', err);
+        console.error("Error loading sports:", err);
       }
     };
     loadSports();
@@ -1882,12 +2742,13 @@ export const Profile: React.FC = () => {
           }
         });
 
-        const loadedFriends = (await Promise.all(friendPromises))
-          .filter((f): f is User => f !== null);
+        const loadedFriends = (await Promise.all(friendPromises)).filter(
+          (f): f is User => f !== null
+        );
 
         setFriends(loadedFriends);
       } catch (error) {
-        console.error('Error loading friends:', error);
+        console.error("Error loading friends:", error);
         setFriends([]);
       } finally {
         setFriendsLoading(false);
@@ -1896,6 +2757,9 @@ export const Profile: React.FC = () => {
 
     loadFriends();
   }, [user]);
+
+  // Note: User profile is loaded in AuthContext and updated via real-time subscriptions
+  // No need to refresh here on mount as it causes unnecessary re-renders and subscription loops
 
   if (isLoading) {
     return (
@@ -1913,122 +2777,129 @@ export const Profile: React.FC = () => {
     );
   }
 
-  const fullName = `${user.firstName} ${user.lastName}`.trim() || 'User';
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || "User";
   const reliability = user.stats?.reliability || 100;
   const matches = user.stats?.matches || 0;
   const mvps = user.stats?.mvps || 0;
   const level = user.level || 1;
 
   return (
-    <div className="flex flex-col bg-background min-h-screen pb-24">
-      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-md px-4 py-3 flex justify-between items-center">
+    <div className="flex flex-col bg-background min-h-screen pb-24 lg:pb-4">
+      {/* Compact Header */}
+      <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-xl border-b border-white/5 px-4 py-2.5 flex justify-between items-center lg:px-5 lg:py-2">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center"
+          className="w-9 h-9 rounded-full hover:bg-white/5 flex items-center justify-center transition-colors lg:w-8 lg:h-8"
         >
-          <span className="material-symbols-outlined">arrow_back</span>
+          <span className="material-symbols-outlined text-[20px] lg:text-lg">
+            arrow_back
+          </span>
         </button>
-        <h1 className="font-bold">Profile</h1>
-        <button 
-          onClick={() => navigate('/settings/notifications')}
-          className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center"
+        <h1 className="font-bold text-base lg:text-sm">{t("pages.profile")}</h1>
+        <button
+          onClick={() => navigate("/settings/notifications")}
+          className="w-9 h-9 rounded-full hover:bg-white/5 flex items-center justify-center transition-colors lg:w-8 lg:h-8"
         >
-          <span className="material-symbols-outlined">settings</span>
+          <span className="material-symbols-outlined text-[20px] lg:text-lg">
+            settings
+          </span>
         </button>
       </header>
 
-      <div className="flex flex-col items-center pt-6 px-4">
-        <div className="relative mb-4">
-          <div className="absolute -inset-1 bg-gradient-to-tr from-yellow-400 via-green-400 to-primary opacity-70 blur rounded-full"></div>
-          <div className="relative">
-            <Avatar
-              src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`}
-              size="w-28 h-28"
-              className="border-4 border-background"
-            />
-          </div>
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-yellow-600 border border-white/20 px-3 py-1 rounded-full flex items-center gap-1 shadow-lg whitespace-nowrap">
-            <span className="material-symbols-outlined text-[14px] text-white">
+      <div className="lg:max-w-4xl lg:mx-auto lg:w-full">
+      {/* Compact Profile Header */}
+      <div className="flex items-center gap-4 px-4 pt-4 pb-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-3">
+        <div className="relative">
+          <Avatar
+            src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`}
+            size="w-16 h-16"
+            className="border-2 border-primary/30 lg:w-14 lg:h-14"
+          />
+          <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-yellow-500 to-yellow-600 border-2 border-background px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg lg:px-1.5 lg:py-0.5">
+            <span className="material-symbols-outlined text-[10px] text-white lg:text-[9px]">
               military_tech
             </span>
-            <span className="text-[10px] font-bold text-white uppercase tracking-wider">
-              Level {level}
-            </span>
+            <span className="text-[9px] font-bold text-white lg:text-[9px]">{level}</span>
           </div>
         </div>
-        <h2 className="text-2xl font-extrabold mt-4 text-center">
-          {fullName}
-        </h2>
-        {user.userId && (
-          <div className="flex items-center justify-center gap-2 text-slate-400 text-sm mt-1">
-            <code className="text-primary font-mono">{user.userId}</code>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(user.userId);
-              }}
-              className="p-1 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
-              title="Copy user ID"
-            >
-              <span className="material-symbols-outlined text-xs">content_copy</span>
-            </button>
-          </div>
-        )}
-        {user.location && (
-          <div className="flex items-center gap-1 text-slate-400 text-sm mt-1">
-            <span className="material-symbols-outlined text-[16px] text-primary">
-              location_on
-            </span>{" "}
-            {user.location}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 px-4 mt-8">
-        <div className="bg-surface p-3 rounded-xl flex flex-col items-center border border-white/5">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-            Matches
-          </span>
-          <span className="text-2xl font-bold mt-1">{matches}</span>
-        </div>
-        <div className="bg-surface p-3 rounded-xl flex flex-col items-center border border-primary/30 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-yellow-400"></div>
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-            Reliability
-          </span>
-          <span className="text-2xl font-bold mt-1">{reliability}%</span>
-        </div>
-        <div className="bg-surface p-3 rounded-xl flex flex-col items-center border border-white/5">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-            MVPs
-          </span>
-          <span className="text-2xl font-bold mt-1">{mvps}</span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-bold truncate lg:text-base">{fullName}</h2>
+          {user.userId && (
+            <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-0.5 lg:gap-1.5 lg:text-xs lg:mt-0.5">
+              <span className="text-slate-400">ID:</span>
+              <code className="text-primary font-mono text-sm truncate lg:text-sm">
+                {user.userId}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(user.userId);
+                }}
+                className="p-0.5 rounded hover:bg-primary/20 transition-colors flex-shrink-0"
+                title="Copy user ID"
+              >
+                <span className="material-symbols-outlined text-[14px] lg:text-sm">
+                  content_copy
+                </span>
+              </button>
+            </div>
+          )}
+          {user.location && (
+            <div className="flex items-center gap-1 text-slate-400 text-xs mt-0.5 lg:text-xs lg:mt-0.5">
+              <span className="material-symbols-outlined text-[14px] text-primary lg:text-sm">
+                location_on
+              </span>
+              <span className="truncate">{user.location}</span>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Compact Stats */}
+      <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-2">
+        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
+          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
+            {t("profile.matches")}
+          </span>
+          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{matches}</span>
+        </div>
+        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-primary/20 relative overflow-hidden lg:p-2">
+          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-green-400 to-yellow-400"></div>
+          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
+            {t("profile.reliability")}
+          </span>
+          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{reliability}%</span>
+        </div>
+        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
+          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
+            {t("profile.mvps")}
+          </span>
+          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{mvps}</span>
+        </div>
+      </div>
+
+      {/* Sports - Compact Horizontal Scroll */}
       {user.sports && user.sports.length > 0 && (
-        <div className="mt-8 px-4">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg">Favorite Sports</h3>
-          </div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        <div className="px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 lg:text-xs lg:mb-2">
+            Sports
+          </h3>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar lg:gap-2">
             {user.sports.map((sport, i) => {
               const getSportIcon = (sportName: string) => {
-                const sportData = sports.find(s => s.name === sportName);
+                const sportData = sports.find((s) => s.name === sportName);
                 if (sportData) return sportData.icon;
-                return 'sports';
+                return "sports";
               };
-              
+
               return (
                 <div
                   key={i}
-                  className="flex flex-col items-center gap-2 min-w-[80px]"
+                  className="flex items-center gap-1.5 bg-surface/50 px-2.5 py-1.5 rounded-lg border border-white/5 flex-shrink-0 lg:px-2.5 lg:py-1.5 lg:gap-1.5"
                 >
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center shadow-lg border-2 border-primary/30">
-                    <span className="material-symbols-outlined text-3xl text-primary">
-                      {getSportIcon(sport)}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400 text-center">
+                  <span className="material-symbols-outlined text-[16px] text-primary lg:text-base">
+                    {getSportIcon(sport)}
+                  </span>
+                  <span className="text-xs font-medium text-slate-300 lg:text-xs">
                     {sport}
                   </span>
                 </div>
@@ -2038,83 +2909,133 @@ export const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Add Friend Section */}
-      <div className="mt-6 px-4">
-        <h3 className="font-bold text-lg mb-4">Add Friend</h3>
-        <AddFriendSection currentUser={user} />
-      </div>
-
-      {/* Friend Requests Section */}
+      {/* Friend Requests Section - Compact */}
       {user.friendRequests && user.friendRequests.length > 0 && (
-        <div className="mt-6 px-4">
-          <h3 className="font-bold text-lg mb-4">Friend Requests ({user.friendRequests.length})</h3>
-          <FriendRequestsSection currentUser={user} onUpdate={() => window.location.reload()} />
+        <div className="px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5">
+          <div className="flex items-center justify-between mb-2 lg:mb-2">
+            <h3 className="text-sm font-bold flex items-center gap-2 lg:text-sm lg:gap-2">
+              Friend Requests
+              <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold lg:text-[10px]">
+                {user.friendRequests.length}
+              </span>
+            </h3>
+          </div>
+          <FriendRequestsSection
+            currentUser={user}
+            onUpdate={async () => {
+              await refreshUser();
+            }}
+          />
         </div>
       )}
 
-      <div className="mt-6 px-4">
-        <h3 className="font-bold text-lg mb-4">Friends ({user.friends?.length || 0})</h3>
+      {/* Event Invitations Section - Compact */}
+      <EventInvitationsSection />
+
+      {/* Add Friend Section - Compact */}
+      <div className="px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5">
+        <h3 className="text-sm font-bold mb-2 lg:text-sm lg:mb-2">{t("profile.addFriend")}</h3>
+        <AddFriendSection currentUser={user} />
+      </div>
+
+      {/* Friends Section - Compact */}
+      <div className="px-4 py-3 lg:px-5 lg:py-2.5">
+        <div className="flex items-center justify-between mb-3 lg:mb-2.5">
+          <h3 className="text-sm font-bold flex items-center gap-2 lg:text-sm lg:gap-2">
+            Friends
+            {user.friends && user.friends.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold lg:text-[10px]">
+                {user.friends.length}
+              </span>
+            )}
+          </h3>
+        </div>
         {friendsLoading ? (
-          <div className="text-center text-slate-400 py-4">Loading friends...</div>
-        ) : (!user.friends || user.friends.length === 0) ? (
-          <div className="text-center text-slate-400 py-4">No friends yet. Add friends using their user ID!</div>
+          <div className="text-center text-slate-400 text-xs py-3 lg:text-xs lg:py-2.5">
+            Loading...
+          </div>
+        ) : !user.friends || user.friends.length === 0 ? (
+          <div className="text-center text-slate-400 text-xs py-3 lg:text-xs lg:py-2.5">
+            {t("profile.noFriends")}
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-2">
             {friends.map((friend) => (
               <div
                 key={friend.id}
-                className="flex items-center justify-between p-3 bg-surface rounded-xl border border-white/5"
+                className="flex items-center justify-between p-2.5 bg-surface/50 rounded-lg border border-white/5 hover:border-primary/20 transition-colors lg:p-2.5"
               >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar 
-                      src={friend.avatar || `https://i.pravatar.cc/150?u=${friend.id}`} 
-                      size="w-10 h-10"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm">{friend.firstName} {friend.lastName}</p>
-                    <p className="text-xs text-slate-400">{friend.userId || `Level ${friend.level || 1}`}</p>
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:gap-2.5">
+                  <Avatar
+                    src={
+                      friend.avatar ||
+                      `https://i.pravatar.cc/150?u=${friend.id}`
+                    }
+                    size="w-9 h-9"
+                    className="lg:w-9 lg:h-9"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate lg:text-sm">
+                      {friend.firstName} {friend.lastName}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate lg:text-xs">
+                      {friend.userId || `Level ${friend.level || 1}`}
+                    </p>
                   </div>
                 </div>
-                <button 
-                  onClick={async () => {
-                    if (user) {
-                      try {
-                        const chatId = await getOrCreateChat([user.id, friend.id]);
-                        navigate(`/chat/${chatId}`);
-                      } catch (error) {
-                        console.error('Error creating chat:', error);
+                <div className="flex gap-1.5 flex-shrink-0 lg:gap-1.5">
+                  <button
+                    onClick={async () => {
+                      if (
+                        !confirm(
+                          t("profile.removeFriendConfirm").replace(
+                            "{name}",
+                            `${friend.firstName} ${friend.lastName}`
+                          )
+                        )
+                      ) {
+                        return;
                       }
-                    }
-                  }}
-                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-primary"
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    chat
-                  </span>
-                </button>
+                      try {
+                        await removeFriend(user.id, friend.id);
+                      } catch (error: any) {
+                        console.error("Error removing friend:", error);
+                        alert(
+                          error.message || t("profile.failedToRemoveFriend")
+                        );
+                      }
+                    }}
+                    className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors lg:w-8 lg:h-8"
+                    title="Remove friend"
+                  >
+                    <span className="material-symbols-outlined text-[16px] lg:text-base">
+                      person_remove
+                    </span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="mt-8 px-4">
+      {/* Logout Button - Compact */}
+      <div className="px-4 py-3 mt-2 lg:px-5 lg:py-2.5 lg:mt-2">
         <button
           onClick={async () => {
             try {
               await signOut();
-              navigate('/');
+              navigate("/");
             } catch (error) {
-              console.error('Error signing out:', error);
+              console.error("Error signing out:", error);
             }
           }}
-          className="w-full py-4 bg-red-500/10 border-2 border-red-500/30 rounded-xl font-bold text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+          className="w-full py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg font-bold text-sm text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2 lg:py-2.5 lg:text-sm lg:gap-2"
         >
-          <span className="material-symbols-outlined">logout</span>
-          Logout
+          <span className="material-symbols-outlined text-[18px] lg:text-lg">logout</span>
+          {t("profile.logout")}
         </button>
+      </div>
       </div>
     </div>
   );
@@ -2122,6 +3043,7 @@ export const Profile: React.FC = () => {
 
 // Add Friend Component
 const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+  const { t } = useLanguage();
   const [searchUserId, setSearchUserId] = useState("");
   const [searchedUser, setSearchedUser] = useState<User | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -2135,7 +3057,7 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     }
 
     if (!isValidUserId(searchUserId.trim())) {
-      setError("Invalid user ID format. Use format: username#1234");
+      setError(t("profile.invalidUserId"));
       return;
     }
 
@@ -2153,10 +3075,10 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           setSearchedUser(user);
         }
       } else {
-        setError("User not found");
+        setError(t("profile.userNotFound"));
       }
     } catch (err: any) {
-      setError(err.message || "Error searching for user");
+      setError(err.message || t("profile.errorSearching"));
     } finally {
       setIsSearching(false);
     }
@@ -2165,87 +3087,98 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const handleSendRequest = async () => {
     if (!searchedUser) return;
 
+    setError("");
+    setSuccess("");
+
     try {
+      console.log(
+        "Attempting to send friend request from",
+        currentUser.id,
+        "to",
+        searchedUser.id
+      );
       await sendFriendRequest(currentUser.id, searchedUser.id);
-      setSuccess("Friend request sent!");
+      setSuccess(t("profile.friendRequestSent"));
       setSearchedUser(null);
       setSearchUserId("");
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err: any) {
-      setError(err.message || "Error sending friend request");
+      console.error("Error sending friend request:", err);
+      const errorMessage = err.message || "Error sending friend request";
+      setError(errorMessage);
+      // Keep error visible longer for important messages
+      setTimeout(() => setError(""), 10000);
     }
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
+    <div className="space-y-2 lg:space-y-2">
+      <div className="flex gap-2 lg:gap-2">
         <input
           type="text"
           value={searchUserId}
           onChange={(e) => setSearchUserId(e.target.value)}
-          placeholder="Enter user ID (e.g., johndoe#1234)"
-          className="flex-1 bg-surface rounded-xl px-4 h-12 outline-none border border-white/10 focus:border-primary transition-colors text-white"
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          placeholder={t("profile.enterUserIdPlaceholder")}
+          className="flex-1 bg-surface/50 rounded-lg px-3 h-9 text-sm outline-none border border-white/10 focus:border-primary transition-colors text-white lg:px-3 lg:h-9 lg:text-sm"
+          onKeyPress={(e) => e.key === "Enter" && handleSearch()}
         />
         <button
           onClick={handleSearch}
           disabled={isSearching}
-          className="px-4 py-2 bg-primary rounded-xl font-bold text-white hover:bg-primary/80 transition-colors disabled:opacity-50"
+          className="px-3 py-1.5 bg-primary rounded-lg font-bold text-sm text-white hover:bg-primary/80 transition-colors disabled:opacity-50 lg:px-3 lg:py-1.5 lg:text-sm"
         >
-          {isSearching ? "Searching..." : "Search"}
+          {isSearching ? "..." : t("profile.search")}
         </button>
       </div>
-      
+
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-          {error}
+        <div className="p-2.5 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-xs lg:p-2.5 lg:text-xs">
+          <div className="flex items-start gap-1.5 lg:gap-1.5">
+            <span className="material-symbols-outlined text-[16px] lg:text-base">error</span>
+            <div className="flex-1">
+              <p className="font-bold mb-0.5 lg:mb-0.5">{error}</p>
+              {error.includes("migration") && (
+                <p className="text-[10px] mt-1 opacity-75 lg:text-[10px] lg:mt-0.5">
+                  Run fix_friend_requests_rls.sql in Supabase SQL Editor
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
-      
+
       {success && (
-        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 text-sm">
+        <div className="p-2 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-xs lg:p-2 lg:text-xs">
           {success}
         </div>
       )}
 
       {searchedUser && (
-        <div className="bg-surface p-4 rounded-xl border border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar 
-              src={searchedUser.avatar || `https://i.pravatar.cc/150?u=${searchedUser.id}`}
-              size="w-12 h-12"
+        <div className="bg-surface/50 p-2.5 rounded-lg border border-white/5 flex items-center justify-between lg:p-2.5">
+          <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:gap-2.5">
+            <Avatar
+              src={
+                searchedUser.avatar ||
+                `https://i.pravatar.cc/150?u=${searchedUser.id}`
+              }
+              size="w-9 h-9"
+              className="lg:w-9 lg:h-9"
             />
-            <div>
-              <p className="font-bold">{searchedUser.firstName} {searchedUser.lastName}</p>
-              <p className="text-xs text-slate-400">{searchedUser.userId}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate lg:text-sm">
+                {searchedUser.firstName} {searchedUser.lastName}
+              </p>
+              <p className="text-[11px] text-slate-400 truncate lg:text-xs">
+                {searchedUser.userId}
+              </p>
             </div>
           </div>
           <button
             onClick={handleSendRequest}
-            className="px-4 py-2 bg-primary rounded-lg font-bold text-white hover:bg-primary/80 transition-colors"
+            className="px-3 py-1.5 bg-primary rounded-lg font-bold text-xs text-white hover:bg-primary/80 transition-colors flex-shrink-0 lg:px-3 lg:py-1.5 lg:text-xs"
           >
-            Send Request
+            {t("profile.send")}
           </button>
-        </div>
-      )}
-
-      {currentUser.userId && (
-        <div className="mt-4 p-3 bg-primary/10 border border-primary/30 rounded-xl">
-          <p className="text-xs text-slate-400 mb-1">Your User ID</p>
-          <div className="flex items-center gap-2">
-            <code className="text-sm font-bold text-primary">{currentUser.userId}</code>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(currentUser.userId);
-                setSuccess("User ID copied!");
-                setTimeout(() => setSuccess(""), 2000);
-              }}
-              className="p-1 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors"
-              title="Copy user ID"
-            >
-              <span className="material-symbols-outlined text-sm">content_copy</span>
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -2253,13 +3186,21 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
 };
 
 // Friend Requests Component
-const FriendRequestsSection: React.FC<{ currentUser: User; onUpdate: () => void }> = ({ currentUser, onUpdate }) => {
-  const [loadingRequests, setLoadingRequests] = useState<Record<string, boolean>>({});
+const FriendRequestsSection: React.FC<{
+  currentUser: User;
+  onUpdate: () => void;
+}> = ({ currentUser, onUpdate }) => {
+  const [loadingRequests, setLoadingRequests] = useState<
+    Record<string, boolean>
+  >({});
   const [requestUsers, setRequestUsers] = useState<User[]>([]);
 
   useEffect(() => {
     const loadRequestUsers = async () => {
-      if (!currentUser.friendRequests || currentUser.friendRequests.length === 0) {
+      if (
+        !currentUser.friendRequests ||
+        currentUser.friendRequests.length === 0
+      ) {
         setRequestUsers([]);
         return;
       }
@@ -2276,7 +3217,7 @@ const FriendRequestsSection: React.FC<{ currentUser: User; onUpdate: () => void 
         );
         setRequestUsers(users.filter((u): u is User => u !== null));
       } catch (error) {
-        console.error('Error loading friend requests:', error);
+        console.error("Error loading friend requests:", error);
       }
     };
 
@@ -2284,41 +3225,70 @@ const FriendRequestsSection: React.FC<{ currentUser: User; onUpdate: () => void 
   }, [currentUser.friendRequests]);
 
   const handleAccept = async (friendId: string) => {
-    setLoadingRequests(prev => ({ ...prev, [friendId]: true }));
+    setLoadingRequests((prev) => ({ ...prev, [friendId]: true }));
     try {
       await acceptFriendRequest(currentUser.id, friendId);
       onUpdate();
     } catch (error) {
-      console.error('Error accepting friend request:', error);
+      console.error("Error accepting friend request:", error);
     } finally {
-      setLoadingRequests(prev => ({ ...prev, [friendId]: false }));
+      setLoadingRequests((prev) => ({ ...prev, [friendId]: false }));
+    }
+  };
+
+  const handleDeny = async (friendId: string) => {
+    setLoadingRequests((prev) => ({ ...prev, [friendId]: true }));
+    try {
+      const { denyFriendRequest } = await import("../services/supabaseService");
+      await denyFriendRequest(currentUser.id, friendId);
+      // Real-time subscription will update the user object automatically
+      onUpdate();
+    } catch (error) {
+      console.error("Error denying friend request:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to deny friend request"
+      );
+    } finally {
+      setLoadingRequests((prev) => ({ ...prev, [friendId]: false }));
     }
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 lg:space-y-2">
       {requestUsers.map((user) => (
         <div
           key={user.id}
-          className="bg-surface p-4 rounded-xl border border-white/5 flex items-center justify-between"
+          className="bg-surface/50 p-2.5 rounded-lg border border-yellow-500/20 flex items-center justify-between lg:p-2.5"
         >
-          <div className="flex items-center gap-3">
-            <Avatar 
+          <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:gap-2.5">
+            <Avatar
               src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`}
-              size="w-12 h-12"
+              size="w-9 h-9"
+              className="lg:w-9 lg:h-9"
             />
-            <div>
-              <p className="font-bold">{user.firstName} {user.lastName}</p>
-              <p className="text-xs text-slate-400">{user.userId}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate lg:text-sm">
+                {user.firstName} {user.lastName}
+              </p>
+              <p className="text-[11px] text-slate-400 truncate lg:text-xs">
+                {user.userId}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 flex-shrink-0 lg:gap-1.5">
             <button
               onClick={() => handleAccept(user.id)}
               disabled={loadingRequests[user.id]}
-              className="px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg font-bold text-green-400 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+              className="px-2.5 py-1.5 bg-green-500/10 border border-green-500/30 rounded-lg font-bold text-xs text-green-400 hover:bg-green-500/20 transition-colors disabled:opacity-50 lg:px-2.5 lg:py-1.5 lg:text-xs"
             >
-              Accept
+              {loadingRequests[user.id] ? "..." : "Accept"}
+            </button>
+            <button
+              onClick={() => handleDeny(user.id)}
+              disabled={loadingRequests[user.id]}
+              className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg font-bold text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 lg:px-2.5 lg:py-1.5 lg:text-xs"
+            >
+              {loadingRequests[user.id] ? "..." : "Deny"}
             </button>
           </div>
         </div>
@@ -2327,12 +3297,251 @@ const FriendRequestsSection: React.FC<{ currentUser: User; onUpdate: () => void 
   );
 };
 
+// Event Invitations Component
+const EventInvitationsSection: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { getUserInvitations, acceptInvitation, denyInvitation, getEvent } =
+    useEvents();
+  const [invitations, setInvitations] = useState<EventRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [denyingId, setDenyingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadInvitations = async () => {
+      if (!user) {
+        setInvitations([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const invs = await getUserInvitations();
+        setInvitations(invs);
+      } catch (error) {
+        console.error("Error loading invitations:", error);
+        setInvitations([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInvitations();
+
+    // Set up real-time subscription for this component (separate from Layout.tsx)
+    // Use unique channel name to avoid conflicts
+    let channel: any = null;
+    const setupRealtime = async () => {
+      if (!user) return;
+
+      const { supabase } = await import("../lib/supabase");
+      const userId = user.id; // Capture in closure
+
+      channel = supabase
+        .channel(`event_invitations_section:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "event_requests",
+          },
+          (payload) => {
+            console.log(
+              "EventInvitationsSection: Real-time change received:",
+              payload
+            );
+
+            // Filter in callback to avoid binding mismatch
+            const isRelevant =
+              (payload.new && payload.new.user_id === userId) ||
+              (payload.old && payload.old.user_id === userId);
+
+            if (!isRelevant) {
+              console.log(
+                "EventInvitationsSection: Change not relevant to current user, ignoring"
+              );
+              return;
+            }
+
+            // Check if this is an invitation-related change
+            // For INSERT: new record with status 'invited'
+            // For UPDATE: status changed to/from 'invited'
+            // For DELETE: old record had status 'invited'
+            const isNewInvitation =
+              payload.new &&
+              payload.new.status === "invited" &&
+              payload.new.user_id === userId;
+            const wasInvitation =
+              payload.old &&
+              payload.old.status === "invited" &&
+              payload.old.user_id === userId;
+            const isInvitationChange = isNewInvitation || wasInvitation;
+
+            if (isInvitationChange) {
+              console.log(
+                "EventInvitationsSection: Reloading invitations due to real-time update - isNewInvitation:",
+                isNewInvitation,
+                "wasInvitation:",
+                wasInvitation
+              );
+              loadInvitations();
+            } else {
+              console.log(
+                "EventInvitationsSection: Change is relevant but not invitation-related, ignoring"
+              );
+            }
+          }
+        )
+        .subscribe((status) => {
+          // Silent subscription - no logging to avoid spam
+        });
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) {
+        import("../lib/supabase").then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const handleAccept = async (eventId: string) => {
+    setAcceptingId(eventId);
+    try {
+      await acceptInvitation(eventId);
+      setInvitations((prev) => prev.filter((inv) => inv.eventId !== eventId));
+      alert("Invitation accepted! You are now part of the event.");
+    } catch (error: any) {
+      console.error("Error accepting invitation:", error);
+      alert(error.message || "Failed to accept invitation");
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
+  const handleDeny = async (eventId: string) => {
+    setDenyingId(eventId);
+    try {
+      await denyInvitation(eventId);
+      // Reload invitations from database to ensure consistency
+      const updatedInvitations = await getUserInvitations();
+      setInvitations(updatedInvitations || []);
+      // No alert needed - invitation is just removed
+    } catch (error: any) {
+      console.error("Error denying invitation:", error);
+      alert(error.message || "Failed to deny invitation");
+    } finally {
+      setDenyingId(null);
+    }
+  };
+
+  if (loading || invitations.length === 0) {
+    return null; // Don't show section if no invitations
+  }
+
+  return (
+    <div className="px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5">
+      <div className="flex items-center justify-between mb-2 lg:mb-2">
+        <h3 className="text-sm font-bold flex items-center gap-2 lg:text-sm lg:gap-2">
+          Event Invitations
+          <span className="px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 text-[10px] font-bold lg:text-[10px]">
+            {invitations.length}
+          </span>
+        </h3>
+      </div>
+      <div className="space-y-2 lg:space-y-2">
+        {invitations.map((invitation) => {
+          const event = getEvent(invitation.eventId);
+          if (!event) return null;
+
+          return (
+            <div
+              key={invitation.id}
+              className="bg-surface/50 p-2.5 rounded-lg border border-yellow-500/20 lg:p-2.5"
+            >
+              <div className="flex items-start justify-between gap-2 mb-2 lg:mb-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate lg:text-sm">{event.title}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate lg:text-xs lg:mt-0.5">
+                    {event.sport} •{" "}
+                    {(() => {
+                      const dateObj = new Date(event.date);
+                      const monthShort = [
+                        t("date.months.short.jan"),
+                        t("date.months.short.feb"),
+                        t("date.months.short.mar"),
+                        t("date.months.short.apr"),
+                        t("date.months.short.may"),
+                        t("date.months.short.jun"),
+                        t("date.months.short.jul"),
+                        t("date.months.short.aug"),
+                        t("date.months.short.sep"),
+                        t("date.months.short.oct"),
+                        t("date.months.short.nov"),
+                        t("date.months.short.dec"),
+                      ][dateObj.getMonth()];
+                      return `${monthShort} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
+                    })()}{" "}
+                    {t('events.at')} {event.time}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate lg:text-xs">
+                    {event.location}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-1.5 lg:gap-1.5">
+                <button
+                  onClick={() => handleAccept(invitation.eventId)}
+                  disabled={
+                    acceptingId === invitation.eventId ||
+                    denyingId === invitation.eventId
+                  }
+                  className="flex-1 px-2.5 py-1.5 bg-green-500/10 border border-green-500/30 rounded-lg font-bold text-xs text-green-400 hover:bg-green-500/20 transition-colors disabled:opacity-50 lg:px-2.5 lg:py-1.5 lg:text-xs"
+                >
+                  {acceptingId === invitation.eventId ? "..." : "Accept"}
+                </button>
+                <button
+                  onClick={() => handleDeny(invitation.eventId)}
+                  disabled={
+                    acceptingId === invitation.eventId ||
+                    denyingId === invitation.eventId
+                  }
+                  className="flex-1 px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg font-bold text-xs text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 lg:px-2.5 lg:py-1.5 lg:text-xs"
+                >
+                  {denyingId === invitation.eventId ? "..." : "Deny"}
+                </button>
+                <button
+                  onClick={() => navigate(`/event/${invitation.eventId}`)}
+                  className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg font-bold text-xs transition-colors lg:px-2.5 lg:py-1.5 lg:text-xs"
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // Friends Component
-const FriendsSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+const FriendsSection: React.FC<{
+  currentUser: User;
+  onUpdate?: () => void;
+}> = ({ currentUser, onUpdate }) => {
   const navigate = useNavigate();
   const { getOrCreateChat } = useMessages();
+  const { refreshUser } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(true);
+  const [removingFriendId, setRemovingFriendId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -2354,7 +3563,7 @@ const FriendsSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
         );
         setFriends(friendUsers.filter((u): u is User => u !== null));
       } catch (error) {
-        console.error('Error loading friends:', error);
+        console.error("Error loading friends:", error);
       } finally {
         setLoadingFriends(false);
       }
@@ -2364,18 +3573,37 @@ const FriendsSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   }, [currentUser.friends]);
 
   const handleRemoveFriend = async (friendId: string) => {
-    if (!confirm('Remove this friend?')) return;
-    
+    if (
+      !confirm(
+        `Are you sure you want to remove ${
+          friends.find((f) => f.id === friendId)?.firstName || "this friend"
+        } from your friends list?`
+      )
+    ) {
+      return;
+    }
+
+    setRemovingFriendId(friendId);
+
     try {
       await removeFriend(currentUser.id, friendId);
-      setFriends(prev => prev.filter(f => f.id !== friendId));
-    } catch (error) {
-      console.error('Error removing friend:', error);
+      // Real-time subscription will update the user object automatically
+      // The friends list will update when user.friends changes
+      if (onUpdate) {
+        onUpdate(); // Still call onUpdate for immediate UI feedback if provided
+      }
+    } catch (error: any) {
+      console.error("Error removing friend:", error);
+      alert(error.message || "Failed to remove friend. Please try again.");
+    } finally {
+      setRemovingFriendId(null);
     }
   };
 
   if (loadingFriends) {
-    return <div className="text-center text-slate-400 py-4">Loading friends...</div>;
+    return (
+      <div className="text-center text-slate-400 py-4">Loading friends...</div>
+    );
   }
 
   return (
@@ -2386,12 +3614,14 @@ const FriendsSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           className="bg-surface p-4 rounded-xl border border-white/5 flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
-            <Avatar 
+            <Avatar
               src={friend.avatar || `https://i.pravatar.cc/150?u=${friend.id}`}
               size="w-12 h-12"
             />
             <div>
-              <p className="font-bold">{friend.firstName} {friend.lastName}</p>
+              <p className="font-bold">
+                {friend.firstName} {friend.lastName}
+              </p>
               <p className="text-xs text-slate-400">{friend.userId}</p>
             </div>
           </div>
@@ -2399,21 +3629,36 @@ const FriendsSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
             <button
               onClick={async () => {
                 try {
-                  const chatId = await getOrCreateChat([currentUser.id, friend.id]);
+                  const chatId = await getOrCreateChat([
+                    currentUser.id,
+                    friend.id,
+                  ]);
                   navigate(`/chat/${chatId}`);
                 } catch (error) {
-                  console.error('Error creating chat:', error);
+                  console.error("Error creating chat:", error);
                 }
               }}
               className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-primary"
             >
-              <span className="material-symbols-outlined text-[18px]">chat</span>
+              <span className="material-symbols-outlined text-[18px]">
+                chat
+              </span>
             </button>
             <button
               onClick={() => handleRemoveFriend(friend.id)}
-              className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20"
+              disabled={removingFriendId === friend.id}
+              className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Remove friend"
             >
-              <span className="material-symbols-outlined text-[18px]">person_remove</span>
+              {removingFriendId === friend.id ? (
+                <span className="material-symbols-outlined text-[18px] animate-spin">
+                  hourglass_empty
+                </span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">
+                  person_remove
+                </span>
+              )}
             </button>
           </div>
         </div>

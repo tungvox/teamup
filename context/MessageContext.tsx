@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Chat, Message } from '../types';
 import { messageService } from '../services/supabaseService';
 import { useAuth } from './AuthContext';
+import { logger } from '../utils/logger';
 
 interface MessageContextType {
   chats: Chat[];
@@ -40,7 +41,7 @@ export const MessageProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
       setMessages(messagesMap);
     } catch (error) {
-      console.error('Error loading chats:', error);
+      logger.error('Error loading chats:', error);
       setChats([]);
       setMessages({});
     }
@@ -60,7 +61,7 @@ export const MessageProvider: React.FC<{ children: ReactNode }> = ({ children })
       setMessages(prev => ({ ...prev, [chatId]: chatMessages }));
       return chatMessages;
     } catch (error) {
-      console.error('Error loading messages:', error);
+      logger.error('Error loading messages:', error);
       return [];
     }
   };
@@ -102,7 +103,7 @@ export const MessageProvider: React.FC<{ children: ReactNode }> = ({ children })
       await messageService.markAsRead(chatId, user.id);
       loadChats();
     } catch (error) {
-      console.error('Error marking as read:', error);
+      logger.error('Error marking as read:', error);
     }
   };
 

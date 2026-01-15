@@ -1,39 +1,179 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useEvents } from '../context/EventContext';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { logger } from '../utils/logger';
 
 export const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { getUserInvitations } = useEvents();
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const [invitationCount, setInvitationCount] = useState(0);
+  const friendRequestCount = user?.friendRequests?.length || 0;
 
   const isActive = (path: string) => location.pathname === path;
 
-  const NavItem = ({ path, icon, label }: { path: string; icon: string; label: string }) => (
+  // Load invitation count
+  useEffect(() => {
+    if (!user) {
+      setInvitationCount(0);
+      return;
+    }
+
+    const loadInvitations = async () => {
+      try {
+        const invitations = await getUserInvitations();
+        const count = invitations?.length || 0;
+        setInvitationCount(count);
+      } catch (error: any) {
+        logger.error('Error loading invitations:', error);
+        // Don't show error to user, just set count to 0
+        setInvitationCount(0);
+      }
+    };
+
+    loadInvitations();
+
+    // Set up real-time subscription for invitations
+    // Note: We subscribe to all changes and filter in the callback to avoid binding mismatch errors
+    let channel: any = null;
+    const setupRealtime = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase');
+        const userId = user.id; // Capture user.id in closure
+        
+        channel = supabase
+          .channel(`user_invitations:${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'event_requests',
+            },
+            async (payload) => {
+              logger.debug('Real-time invitation change received');
+              
+              // Filter in callback to avoid binding mismatch
+              const isRelevant = 
+                (payload.new && payload.new.user_id === userId) ||
+                (payload.old && payload.old.user_id === userId);
+              
+              if (!isRelevant) {
+                return;
+              }
+              
+              // Check if this is an invitation-related change
+              // For INSERT: new record with status 'invited'
+              // For UPDATE: status changed to/from 'invited' 
+              // For DELETE: old record had status 'invited'
+              const isNewInvitation = payload.new && payload.new.status === 'invited' && payload.new.user_id === userId;
+              const wasInvitation = payload.old && payload.old.status === 'invited' && payload.old.user_id === userId;
+              const isInvitationChange = isNewInvitation || wasInvitation;
+              
+              if (isInvitationChange) {
+                // Reload invitations to get updated count
+                try {
+                  const invitations = await getUserInvitations();
+                  const count = invitations?.length || 0;
+                  setInvitationCount(count);
+                } catch (error: any) {
+                  logger.error('Error reloading invitations in real-time callback:', error);
+                }
+              }
+            }
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              logger.log('Real-time subscription active for invitations');
+            } else if (status === 'CHANNEL_ERROR') {
+              logger.warn('Real-time subscription error for invitations:', err);
+              logger.warn('Make sure Realtime is enabled for event_requests table in Supabase Dashboard > Database > Replication');
+              // Disable real-time subscription on error to prevent constant errors
+              if (channel) {
+                import('../lib/supabase').then(({ supabase }) => {
+                  supabase.removeChannel(channel);
+                });
+              }
+            } else if (status === 'TIMED_OUT') {
+              logger.warn('Real-time subscription timed out for invitations');
+            }
+          });
+      } catch (error) {
+        logger.error('Error setting up real-time subscription:', error);
+      }
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) {
+        import('../lib/supabase').then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        }).catch(err => {
+          logger.error('Error removing channel:', err);
+        });
+      }
+    };
+    // Include getUserInvitations in dependencies to ensure we have the latest function
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, getUserInvitations]);
+
+  const NavItem = ({ path, icon, label, showNotification = false, notificationCount = 0 }: { 
+    path: string; 
+    icon: string; 
+    label: string;
+    showNotification?: boolean;
+    notificationCount?: number;
+  }) => (
     <button
       onClick={() => navigate(path)}
-      className={`flex flex-col items-center gap-1 p-2 w-16 lg:w-full group transition-colors ${
+      className={`flex flex-col items-center gap-1 p-2 w-16 lg:w-full lg:p-1.5 lg:gap-0.5 group transition-colors relative ${
         isActive(path) ? 'text-primary' : 'text-slate-500 hover:text-slate-300'
       }`}
       title={label}
     >
-      <span className={`material-symbols-outlined text-[26px] lg:text-[28px] ${isActive(path) ? 'font-variation-settings-fill' : ''}`}>
-        {icon}
+      <span className="relative">
+        <span className={`material-symbols-outlined text-[26px] lg:text-[22px] ${isActive(path) ? 'font-variation-settings-fill' : ''}`}>
+          {icon}
+        </span>
+        {showNotification && notificationCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-surface flex items-center justify-center lg:h-3 lg:w-3 lg:-top-0.5 lg:-right-0.5">
+            <span className="text-[8px] font-bold text-white lg:text-[7px]">{notificationCount > 9 ? '9+' : notificationCount}</span>
+          </span>
+        )}
       </span>
-      <span className="text-[10px] font-medium lg:text-xs">{label}</span>
+      <span className="text-[10px] font-medium lg:text-[10px]">{label}</span>
     </button>
   );
 
   return (
-    <nav className="sticky bottom-0 z-50 w-full bg-surface/95 backdrop-blur-xl border-t border-white/5 pb-safe pt-2 px-2 lg:border-t-0 lg:border-r lg:border-r-white/5 lg:bg-surface/98 lg:w-20 lg:h-screen lg:fixed lg:left-0 lg:top-0 lg:flex lg:flex-col lg:justify-start lg:items-center lg:pt-8 lg:pb-4 lg:px-0">
-      <div className="flex justify-around items-center h-16 max-w-full lg:flex-col lg:justify-start lg:gap-6 lg:h-auto lg:w-full">
-        <NavItem path="/home" icon="home" label="Home" />
-        <NavItem path="/my-games" icon="sports_score" label="My Events" />
-        <div className="relative -top-5 lg:static lg:my-4">
-           <button onClick={() => navigate('/event/create')} className="h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/40 flex items-center justify-center transform hover:scale-105 transition-all lg:w-12 lg:h-12">
-             <span className="material-symbols-outlined text-[28px] lg:text-[24px]">add</span>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 w-full bg-surface/95 backdrop-blur-xl border-t border-white/5 pb-safe pt-2 px-2 lg:border-t-0 lg:border-r lg:border-r-white/5 lg:bg-surface/98 lg:w-16 lg:h-screen lg:left-0 lg:top-0 lg:right-auto lg:flex lg:flex-col lg:justify-start lg:items-center lg:pt-4 lg:pb-3 lg:px-0">
+      <div className="flex justify-around items-center h-16 max-w-full lg:flex-col lg:justify-start lg:gap-3 lg:h-auto lg:w-full">
+        <NavItem path="/home" icon="home" label={t('nav.home')} />
+        <NavItem 
+          path="/my-games" 
+          icon="sports_score" 
+          label={t('nav.myGames')} 
+          showNotification={invitationCount > 0}
+          notificationCount={invitationCount}
+        />
+        <div className="relative -top-5 lg:static lg:my-2">
+           <button onClick={() => navigate('/event/create')} className="h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/40 flex items-center justify-center transform hover:scale-105 transition-all lg:w-10 lg:h-10">
+             <span className="material-symbols-outlined text-[28px] lg:text-[20px]">add</span>
            </button>
         </div>
-        <NavItem path="/messages" icon="chat_bubble" label="Chat" />
-        <NavItem path="/profile" icon="person" label="Profile" />
+        <NavItem path="/messages" icon="chat_bubble" label={t('nav.messages')} />
+        <NavItem 
+          path="/profile" 
+          icon="person" 
+          label={t('nav.profile')}
+          showNotification={friendRequestCount > 0}
+          notificationCount={friendRequestCount}
+        />
       </div>
     </nav>
   );

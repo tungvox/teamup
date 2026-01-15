@@ -11,12 +11,15 @@ import { AuthProvider } from './context/AuthContext';
 import { EventProvider } from './context/EventContext';
 import { MessageProvider } from './context/MessageContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { clerkPubKey } from './lib/clerk';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
   // Routes where the bottom navigation should appear
   const showBottomNav = ['/home', '/my-games', '/messages', '/profile'].includes(location.pathname);
+  // Routes that should be full width (onboarding, auth, etc.)
+  const isFullWidthRoute = ['/', '/auth', '/login', '/create-profile', '/set-location', '/success'].includes(location.pathname);
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-background relative overflow-hidden">
@@ -27,9 +30,9 @@ const AppContent: React.FC = () => {
         </div>
       )}
       
-      {/* Responsive container - mobile first, then full width on larger screens */}
-      <div className="w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl lg:w-[calc(100%-5rem)] xl:w-[calc(100%-5rem)] mx-auto bg-background shadow-2xl min-h-screen flex flex-col lg:ml-20">
-        <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full">
+      {/* Responsive container - full width on larger screens */}
+      <div className={`w-full h-full bg-background shadow-2xl min-h-screen flex flex-col ${isFullWidthRoute ? '' : 'lg:w-[calc(100%-4rem)] lg:ml-16'}`}>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full h-full">
         <Routes>
           {/* Onboarding Flow */}
           <Route path="/" element={<OnboardingLanding />} />
@@ -71,8 +74,6 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  console.log('App component rendering');
-  
   if (!clerkPubKey) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background text-white">
@@ -89,15 +90,17 @@ const App: React.FC = () => {
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
     <HashRouter>
-        <AuthProvider>
-          <EventProvider>
-            <MessageProvider>
-              <SettingsProvider>
-      <AppContent />
-              </SettingsProvider>
-            </MessageProvider>
-          </EventProvider>
-        </AuthProvider>
+          <AuthProvider>
+            <LanguageProvider>
+              <EventProvider>
+                <MessageProvider>
+                  <SettingsProvider>
+                    <AppContent />
+                  </SettingsProvider>
+                </MessageProvider>
+              </EventProvider>
+            </LanguageProvider>
+          </AuthProvider>
     </HashRouter>
     </ClerkProvider>
   );

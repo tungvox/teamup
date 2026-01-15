@@ -11,6 +11,11 @@ const mapContainerStyle = {
   height: '500px',
 };
 
+const mapContainerStyleDesktop = {
+  width: '100%',
+  height: '400px',
+};
+
 interface EventsMapViewProps {
   events: Event[];
   onEventClick?: (event: Event) => void;
@@ -224,11 +229,11 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
 
   if (!googleMapsApiKey || googleMapsApiKey.trim() === '') {
     return (
-      <div className={`${className} rounded-lg border border-yellow-500/50 bg-yellow-500/10 flex items-center justify-center h-[500px]`}>
-        <div className="text-center text-yellow-400 p-6 max-w-md">
-          <span className="material-symbols-outlined text-4xl mb-2 block">warning</span>
-          <p className="text-sm font-medium mb-2">Google Maps API key is not configured</p>
-          <p className="text-xs text-yellow-500/70 mt-2">
+      <div className={`${className} rounded-lg border border-yellow-500/50 bg-yellow-500/10 flex items-center justify-center h-[500px] lg:h-[400px]`}>
+        <div className="text-center text-yellow-400 p-6 max-w-md lg:p-4">
+          <span className="material-symbols-outlined text-4xl mb-2 block lg:text-3xl lg:mb-1.5">warning</span>
+          <p className="text-sm font-medium mb-2 lg:text-xs lg:mb-1.5">Google Maps API key is not configured</p>
+          <p className="text-xs text-yellow-500/70 mt-2 lg:text-[11px] lg:mt-1.5">
             Please set <code className="bg-yellow-500/20 px-1 rounded">VITE_GOOGLE_MAPS_API_KEY</code> in your <code className="bg-yellow-500/20 px-1 rounded">.env</code> file
           </p>
           <p className="text-xs text-yellow-500/60 mt-4">
@@ -242,11 +247,11 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
   // Show error state if there's an error
   if (mapError) {
     return (
-      <div className={`${className} rounded-lg border border-yellow-500/50 bg-yellow-500/10 flex items-center justify-center h-[500px]`}>
-        <div className="text-center text-yellow-400 p-6 max-w-md">
-          <span className="material-symbols-outlined text-4xl mb-2 block">warning</span>
-          <p className="text-sm font-medium mb-2">{mapError}</p>
-          <p className="text-xs text-yellow-500/70 mt-2">
+      <div className={`${className} rounded-lg border border-yellow-500/50 bg-yellow-500/10 flex items-center justify-center h-[500px] lg:h-[400px]`}>
+        <div className="text-center text-yellow-400 p-6 max-w-md lg:p-4">
+          <span className="material-symbols-outlined text-4xl mb-2 block lg:text-3xl lg:mb-1.5">warning</span>
+          <p className="text-sm font-medium mb-2 lg:text-xs lg:mb-1.5">{mapError}</p>
+          <p className="text-xs text-yellow-500/70 mt-2 lg:text-[11px] lg:mt-1.5">
             Please check:
           </p>
           <ul className="text-xs text-yellow-500/70 mt-2 list-disc list-inside space-y-1 text-left">
@@ -267,11 +272,11 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
   // Show loading state while script loads
   if (!isScriptLoaded && !mapError) {
     return (
-      <div className={`${className} rounded-lg border border-white/10 bg-slate-800 flex items-center justify-center h-[500px]`}>
+      <div className={`${className} rounded-lg border border-white/10 bg-slate-800 flex items-center justify-center h-[500px] lg:h-[400px]`}>
         <div className="text-center text-slate-400">
-          <span className="material-symbols-outlined text-4xl mb-2 block animate-pulse">map</span>
-          <p className="text-sm">Loading map...</p>
-          <p className="text-xs mt-2 text-slate-500">This may take a few seconds</p>
+          <span className="material-symbols-outlined text-4xl mb-2 block animate-pulse lg:text-3xl lg:mb-1.5">map</span>
+          <p className="text-sm lg:text-xs">Loading map...</p>
+          <p className="text-xs mt-2 text-slate-500 lg:text-[11px] lg:mt-1.5">This may take a few seconds</p>
         </div>
       </div>
     );
@@ -293,9 +298,9 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
             </div>
           )}
           
-          <div className="rounded-lg overflow-hidden border border-white/10">
+          <div className="rounded-lg overflow-hidden border border-white/10 h-[500px] lg:h-[400px]">
             <GoogleMap
-            mapContainerStyle={mapContainerStyle}
+            mapContainerStyle={{ width: '100%', height: '100%' }}
             center={mapCenter}
             zoom={mapZoom}
             onLoad={onMapLoad}
@@ -349,7 +354,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
                   icon={{
                     path: google.maps.SymbolPath.CIRCLE,
                     scale: 10,
-                    fillColor: isPast ? '#6b7280' : '#0d7cf2', // Grey for past, blue for upcoming
+                    fillColor: isPast ? '#6b7280' : '#ef4444', // Grey for past, red for upcoming
                     fillOpacity: 1,
                     strokeColor: '#ffffff',
                     strokeWeight: 3,

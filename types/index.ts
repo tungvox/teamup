@@ -46,7 +46,8 @@ export interface EventRequest {
   id: string;
   eventId: string;
   userId: string; // clerk_id of the requester
-  status: 'pending' | 'approved' | 'denied';
+  status: 'pending' | 'approved' | 'denied' | 'invited';
+  invitedBy?: string; // clerk_id of the organizer who sent the invitation
   createdAt: string;
   updatedAt: string;
 }

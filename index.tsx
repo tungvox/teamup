@@ -2,15 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-
-console.log('index.tsx loaded');
+import { logger } from './utils/logger';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
-
-console.log('Root element found:', rootElement);
 
 const root = ReactDOM.createRoot(rootElement);
 
@@ -23,7 +20,7 @@ try {
     </React.StrictMode>
   );
 } catch (error) {
-  console.error('Failed to render app:', error);
+  logger.error('Failed to render app:', error);
   rootElement.innerHTML = `
     <div style="padding: 20px; color: white; background: #101922; min-height: 100vh;">
       <h1>Failed to load app</h1>
