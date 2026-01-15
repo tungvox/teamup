@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS user_settings (
 -- Enable RLS
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can insert their own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can update their own settings" ON user_settings;
+
 -- Policy: Users can only read/update their own settings
 CREATE POLICY "Users can view their own settings"
   ON user_settings FOR SELECT
@@ -38,12 +43,19 @@ CREATE POLICY "Users can update their own settings"
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_user_settings_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS update_user_settings_timestamp ON user_settings;
 
 -- Create trigger
 CREATE TRIGGER update_user_settings_timestamp
