@@ -106,11 +106,11 @@ export const eventService = {
     return data ? mapEventFromDB(data) : null;
   },
 
-  async createEvent(eventData: Omit<Event, 'id' | 'createdAt'>): Promise<Event> {
+  async createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'code'>): Promise<Event> {
     // Generate unique code if not provided
     const eventWithCode = {
       ...eventData,
-      code: eventData.code || generateEventCode(),
+      code: generateEventCode(),
     };
     const dbData = mapEventToDB(eventWithCode);
     

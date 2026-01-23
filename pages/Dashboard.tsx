@@ -13,7 +13,7 @@ import { useEvents } from "../context/EventContext";
 import { useMessages } from "../context/MessageContext";
 import { useLanguage } from "../context/LanguageContext";
 import { userService } from "../services/userService";
-import { User, EventRequest } from "../types";
+import { User, EventRequest, Event } from "../types";
 import {
   sportsService,
   getUserByUserId,
@@ -32,7 +32,7 @@ interface Sport {
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { events, searchEvents, joinEvent } = useEvents();
+  const { events, joinEvent } = useEvents();
   const { unreadCount } = useMessages();
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
@@ -527,52 +527,6 @@ export const Home: React.FC = () => {
     });
   };
 
-  const getDayEvents = (date: Date): typeof events => {
-    const now = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const dateStr = `${year}-${month}-${day}`;
-
-    let result = events.filter((e) => {
-      if (e.date !== dateStr || e.status !== "open") return false;
-
-      // Filter by sport if selected
-      if (selectedFilter && e.sport !== selectedFilter) return false;
-
-      // Check if event is upcoming or happening (not past)
-      const eventDateTime = new Date(`${e.date}T${e.time}`);
-      const eventEndTime = e.endTime
-        ? new Date(`${e.date}T${e.endTime}`)
-        : null;
-
-      // If event has an end time, show if it hasn't ended yet
-      if (eventEndTime) {
-        return eventEndTime >= now;
-      }
-      // If no end time, show if start time hasn't passed yet
-      return eventDateTime >= now;
-    });
-
-    // Filter by location if selected
-    if (selectedLocation) {
-      result = result.filter((e) => {
-        const locationLower = e.location.toLowerCase();
-        const selectedLocationLower = selectedLocation.toLowerCase();
-        return locationLower.includes(selectedLocationLower);
-      });
-    }
-
-    return result.sort((a, b) => {
-      // Sort by time (earliest first)
-      const timeA = a.time.split(":").map(Number);
-      const timeB = b.time.split(":").map(Number);
-      const minutesA = timeA[0] * 60 + timeA[1];
-      const minutesB = timeB[0] * 60 + timeB[1];
-      return minutesA - minutesB;
-    });
-  };
-
   const navigateMonth = (direction: "prev" | "next") => {
     setCurrentMonth((prev) => {
       const newDate = new Date(prev);
@@ -660,14 +614,6 @@ export const Home: React.FC = () => {
       return `${t("date.today")}, ${dayNum} ${monthName} ${year}`;
     }
     return `${dayName}, ${dayNum} ${monthName} ${year}`;
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   const monthNames = [
@@ -919,7 +865,7 @@ export const Home: React.FC = () => {
                       </div>
                       <div className="mt-1 flex items-center justify-between border-t border-primary/20 pt-3">
                         <div className="flex items-center -space-x-2">
-                          {eventPlayers.map((player, idx) => (
+                          {eventPlayers.map((player) => (
                             <Avatar
                               key={player.id}
                               src={
@@ -1116,7 +1062,11 @@ export const Home: React.FC = () => {
                   onClick={(e) => {
                     const dateInput = e.currentTarget
                       .nextElementSibling as HTMLInputElement;
-                    dateInput?.showPicker?.() || dateInput?.click();
+                    if (typeof dateInput?.showPicker === 'function') {
+                      dateInput.showPicker();
+                    } else {
+                      dateInput?.click?.();
+                    }
                   }}
                   className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm cursor-pointer"
                   placeholder="dd/mm/yyyy"
@@ -1571,13 +1521,12 @@ export const MyEvents: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const {
-    myEvents,
     events,
     getUserPendingRequest,
     getUserInvitations,
     getEvent,
   } = useEvents();
-  const { getOrCreateChat } = useMessages();
+  useMessages();
   const { t } = useLanguage();
   const [eventPlayersMap, setEventPlayersMap] = useState<
     Record<string, User[]>
@@ -1882,63 +1831,6 @@ export const MyEvents: React.FC = () => {
     ];
     const monthName = monthNames[dateObj.getMonth()];
     return `${dayName}, ${dateObj.getDate()} ${monthName}, ${timeStr}`;
-  };
-
-  const formatShortDate = (date: string, time: string) => {
-    const eventDate = new Date(`${date}T${time}`);
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
-    const displayHour = hour % 12 || 12;
-    return `${days[eventDate.getDay()]}, ${displayHour}:${minutes} ${ampm}`;
-  };
-
-  const getSportIcon = (sport: string) => {
-    const iconMap: Record<string, string> = {
-      Tennis: "sports_tennis",
-      Pickleball: "sports_tennis",
-      Badminton: "sports_tennis",
-      Basketball: "sports_basketball",
-      Soccer: "sports_soccer",
-      Volleyball: "sports_volleyball",
-    };
-    return iconMap[sport] || "sports";
-  };
-
-  const getSportImage = (sport: string) => {
-    const imageMap: Record<string, string> = {
-      Tennis:
-        "https://images.unsplash.com/photo-1622163642992-6c65f9a7d7c6?w=400&h=400&fit=crop",
-      Pickleball:
-        "https://images.unsplash.com/photo-1635776062043-223faf322554?w=400&h=400&fit=crop",
-      Badminton:
-        "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=400&h=400&fit=crop",
-      Basketball:
-        "https://images.unsplash.com/photo-1546519638-70e1e7366b59?w=400&h=400&fit=crop",
-      Soccer:
-        "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=400&h=400&fit=crop",
-      Volleyball:
-        "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=400&h=400&fit=crop",
-    };
-    return (
-      imageMap[sport] ||
-      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=400&fit=crop"
-    );
   };
 
   // Load sports
@@ -2703,7 +2595,7 @@ export const Messages: React.FC = () => {
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading, signOut, refreshUser } = useAuth();
-  const { events, getUserInvitations, acceptInvitation } = useEvents();
+  useEvents(); // Profile may use events/acceptInvitation via child or later
   const { t } = useLanguage();
   const [friends, setFriends] = useState<User[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
@@ -3300,6 +3192,7 @@ const FriendRequestsSection: React.FC<{
 // Event Invitations Component
 const EventInvitationsSection: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { getUserInvitations, acceptInvitation, denyInvitation, getEvent } =
     useEvents();
@@ -3353,10 +3246,13 @@ const EventInvitationsSection: React.FC = () => {
               payload
             );
 
+            const newRecord = payload.new as any;
+            const oldRecord = payload.old as any;
+
             // Filter in callback to avoid binding mismatch
             const isRelevant =
-              (payload.new && payload.new.user_id === userId) ||
-              (payload.old && payload.old.user_id === userId);
+              (newRecord && newRecord.user_id === userId) ||
+              (oldRecord && oldRecord.user_id === userId);
 
             if (!isRelevant) {
               console.log(
@@ -3370,13 +3266,13 @@ const EventInvitationsSection: React.FC = () => {
             // For UPDATE: status changed to/from 'invited'
             // For DELETE: old record had status 'invited'
             const isNewInvitation =
-              payload.new &&
-              payload.new.status === "invited" &&
-              payload.new.user_id === userId;
+              newRecord &&
+              newRecord.status === "invited" &&
+              newRecord.user_id === userId;
             const wasInvitation =
-              payload.old &&
-              payload.old.status === "invited" &&
-              payload.old.user_id === userId;
+              oldRecord &&
+              oldRecord.status === "invited" &&
+              oldRecord.user_id === userId;
             const isInvitationChange = isNewInvitation || wasInvitation;
 
             if (isInvitationChange) {
@@ -3394,7 +3290,7 @@ const EventInvitationsSection: React.FC = () => {
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((_status) => {
           // Silent subscription - no logging to avoid spam
         });
     };
@@ -3531,138 +3427,3 @@ const EventInvitationsSection: React.FC = () => {
   );
 };
 
-// Friends Component
-const FriendsSection: React.FC<{
-  currentUser: User;
-  onUpdate?: () => void;
-}> = ({ currentUser, onUpdate }) => {
-  const navigate = useNavigate();
-  const { getOrCreateChat } = useMessages();
-  const { refreshUser } = useAuth();
-  const [friends, setFriends] = useState<User[]>([]);
-  const [loadingFriends, setLoadingFriends] = useState(true);
-  const [removingFriendId, setRemovingFriendId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadFriends = async () => {
-      if (!currentUser.friends || currentUser.friends.length === 0) {
-        setFriends([]);
-        setLoadingFriends(false);
-        return;
-      }
-
-      try {
-        const friendUsers = await Promise.all(
-          currentUser.friends.map(async (friendId) => {
-            try {
-              return await userService.getUserProfile(friendId);
-            } catch {
-              return null;
-            }
-          })
-        );
-        setFriends(friendUsers.filter((u): u is User => u !== null));
-      } catch (error) {
-        console.error("Error loading friends:", error);
-      } finally {
-        setLoadingFriends(false);
-      }
-    };
-
-    loadFriends();
-  }, [currentUser.friends]);
-
-  const handleRemoveFriend = async (friendId: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove ${
-          friends.find((f) => f.id === friendId)?.firstName || "this friend"
-        } from your friends list?`
-      )
-    ) {
-      return;
-    }
-
-    setRemovingFriendId(friendId);
-
-    try {
-      await removeFriend(currentUser.id, friendId);
-      // Real-time subscription will update the user object automatically
-      // The friends list will update when user.friends changes
-      if (onUpdate) {
-        onUpdate(); // Still call onUpdate for immediate UI feedback if provided
-      }
-    } catch (error: any) {
-      console.error("Error removing friend:", error);
-      alert(error.message || "Failed to remove friend. Please try again.");
-    } finally {
-      setRemovingFriendId(null);
-    }
-  };
-
-  if (loadingFriends) {
-    return (
-      <div className="text-center text-slate-400 py-4">Loading friends...</div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {friends.map((friend) => (
-        <div
-          key={friend.id}
-          className="bg-surface p-4 rounded-xl border border-white/5 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3">
-            <Avatar
-              src={friend.avatar || `https://i.pravatar.cc/150?u=${friend.id}`}
-              size="w-12 h-12"
-            />
-            <div>
-              <p className="font-bold">
-                {friend.firstName} {friend.lastName}
-              </p>
-              <p className="text-xs text-slate-400">{friend.userId}</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const chatId = await getOrCreateChat([
-                    currentUser.id,
-                    friend.id,
-                  ]);
-                  navigate(`/chat/${chatId}`);
-                } catch (error) {
-                  console.error("Error creating chat:", error);
-                }
-              }}
-              className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                chat
-              </span>
-            </button>
-            <button
-              onClick={() => handleRemoveFriend(friend.id)}
-              disabled={removingFriendId === friend.id}
-              className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Remove friend"
-            >
-              {removingFriendId === friend.id ? (
-                <span className="material-symbols-outlined text-[18px] animate-spin">
-                  hourglass_empty
-                </span>
-              ) : (
-                <span className="material-symbols-outlined text-[18px]">
-                  person_remove
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};

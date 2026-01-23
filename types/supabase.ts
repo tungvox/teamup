@@ -16,6 +16,7 @@ export interface Database {
       events: {
         Row: {
           id: string
+          code: string
           title: string
           sport: string
           description: string | null
@@ -91,24 +92,146 @@ export interface Database {
           avatar: string | null
           location: string | null
           sports: string[]
-          stats: {
-            matches: number
-            reliability: number
-            mvps: number
-          }
+          stats: Json
           level: number
+          user_id: string | null
+          friends: string[]
+          friend_requests: string[]
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['user_profiles']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: {
+          id?: string
+          clerk_id: string
+          email: string
+          first_name: string
+          last_name: string
+          avatar?: string | null
+          location?: string | null
+          sports: string[]
+          stats: Json
+          level?: number
+          user_id?: string | null
+          friends?: string[]
+          friend_requests?: string[]
+          created_at?: string
+          updated_at?: string
+        }
         Update: Partial<Database['public']['Tables']['user_profiles']['Insert']>
+      }
+      event_requests: {
+        Row: {
+          id: string
+          event_id: string
+          user_id: string
+          status: 'pending' | 'approved' | 'denied' | 'invited'
+          invited_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['event_requests']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['event_requests']['Insert']>
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_event: {
+        Args: {
+          p_code: string
+          p_title: string
+          p_sport: string
+          p_description: string | null
+          p_date: string
+          p_time: string
+          p_end_time: string | null
+          p_location: string
+          p_location_details: string | null
+          p_organizer_id: string
+          p_organizer_name: string
+          p_max_players: number
+          p_price: number | null
+          p_skill_level: string
+          p_competitive: boolean
+          p_image: string | null
+        }
+        Returns: any
+      }
+      approve_player_request: {
+        Args: {
+          p_event_id: string
+          p_user_id: string
+        }
+        Returns: any
+      }
+      get_user_pending_request: {
+        Args: {
+          p_event_id: string
+          p_user_id: string
+        }
+        Returns: any
+      }
+      invite_friend_to_event: {
+        Args: {
+          p_event_id: string
+          p_friend_id: string
+          p_organizer_id: string
+        }
+        Returns: any
+      }
+      get_user_invitations: {
+        Args: { p_user_id: string }
+        Returns: any
+      }
+      deny_invitation: {
+        Args: {
+          p_event_id: string
+          p_user_id: string
+        }
+        Returns: any
+      }
+      create_user_profile: {
+        Args: {
+          p_clerk_id: string
+          p_email: string
+          p_user_id: string
+          p_first_name: string
+          p_last_name: string
+          p_avatar: string | null
+          p_location: string | null
+          p_sports: string[]
+        }
+        Returns: any
+      }
+      update_user_profile: {
+        Args: {
+          p_clerk_id: string
+          p_updates: any
+        }
+        Returns: any
+      }
+      send_friend_request: {
+        Args: {
+          p_from_user_id: string
+          p_to_user_id: string
+        }
+        Returns: any
+      }
+      accept_friend_request: {
+        Args: {
+          p_user_id: string
+          p_friend_id: string
+        }
+        Returns: any
+      }
+      remove_friend: {
+        Args: {
+          p_user_id: string
+          p_friend_id: string
+        }
+        Returns: any
+      }
     }
     Enums: {
       [_ in never]: never

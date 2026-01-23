@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import { Header, Avatar, Badge } from "../components/Layout";
+import { Header, Avatar } from "../components/Layout";
 import { useEvents } from "../context/EventContext";
 import { useAuth } from "../context/AuthContext";
 import { useMessages } from "../context/MessageContext";
@@ -25,7 +25,7 @@ interface Sport {
 export const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
   const { createEvent } = useEvents();
-  const { user } = useAuth();
+  useAuth();
   const { t } = useLanguage();
   const [title, setTitle] = useState("");
   const [sport, setSport] = useState("Tennis");
@@ -55,7 +55,7 @@ export const CreateEvent: React.FC = () => {
   const [showEndTime, setShowEndTime] = useState(false);
   const [duration, setDuration] = useState<number>(60); // Duration in minutes, default 60 (1 hour)
   const [location, setLocation] = useState("");
-  const [locationCoords, setLocationCoords] = useState<{
+  const [, setLocationCoords] = useState<{
     lat?: number;
     lng?: number;
   }>({});
@@ -713,45 +713,91 @@ export const EventCreated: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadEvent = () => {
-      const eventId = (location.state as any)?.eventId;
-      const eventFromState = (location.state as any)?.event;
+    const eventId = (location.state as any)?.eventId;
+    const eventFromState = (location.state as any)?.event;
 
-      // If event was passed directly in state, use it
-      if (eventFromState) {
-        setEvent(eventFromState);
+    // If event was passed directly in state, use it
+    if (eventFromState) {
+      setEvent(eventFromState);
+      setIsLoading(false);
+      return;
+    }
+
+    // Otherwise, try to get it from the events list
+    if (eventId) {
+      let eventData = getEvent(eventId);
+
+      if (eventData) {
+        setEvent(eventData);
         setIsLoading(false);
         return;
-      }
-
-      // Otherwise, try to get it from the events list
-      if (eventId) {
-        // Try to get event immediately
-        let eventData = getEvent(eventId);
-
-        if (eventData) {
-          setEvent(eventData);
-          setIsLoading(false);
-        } else {
-          // If not found, wait a bit and try again (events might still be loading)
-          const timeout = setTimeout(() => {
-            const eventData = getEvent(eventId);
-            if (eventData) {
-              setEvent(eventData);
-            }
-            setIsLoading(false);
-          }, 500);
-
-          return () => clearTimeout(timeout);
-        }
       } else {
-        setIsLoading(false);
+        // If not found, wait a bit and try again (events might still be loading)
+        const timeout = setTimeout(() => {
+          const data = getEvent(eventId);
+          if (data) setEvent(data);
+          setIsLoading(false);
+        }, 500);
+        return () => clearTimeout(timeout);
       }
-    };
-    loadEvent();
+    } else {
+      setIsLoading(false);
+      return;
+    }
   }, [location.state, getEvent, events]);
 
   const spotsLeft = event ? event.maxPlayers - event.currentPlayers : 0;
+
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? t("date.time.pm") : t("date.time.am");
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const formatEventDate = (dateString: string, timeString: string, endTime?: string) => {
+    const eventDate = new Date(`${dateString}T${timeString}`);
+    const now = new Date();
+    const diff = eventDate.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    const timeStr = endTime
+      ? `${formatTime(timeString)} - ${formatTime(endTime)}`
+      : formatTime(timeString);
+    
+    const dayNames = [
+      t("date.days.sunday"),
+      t("date.days.monday"),
+      t("date.days.tuesday"),
+      t("date.days.wednesday"),
+      t("date.days.thursday"),
+      t("date.days.friday"),
+      t("date.days.saturday"),
+    ];
+    const dayName = dayNames[eventDate.getDay()];
+
+    if (days === 0) return `${t("date.today")} (${dayName}), ${timeStr}`;
+    if (days === 1) return `${t("date.tomorrow")} (${dayName}), ${timeStr}`;
+    
+    const dateObj = new Date(dateString);
+    const monthNames = [
+      t("date.months.january"),
+      t("date.months.february"),
+      t("date.months.march"),
+      t("date.months.april"),
+      t("date.months.may"),
+      t("date.months.june"),
+      t("date.months.july"),
+      t("date.months.august"),
+      t("date.months.september"),
+      t("date.months.october"),
+      t("date.months.november"),
+      t("date.months.december"),
+    ];
+    const monthName = monthNames[dateObj.getMonth()];
+    return `${dayName}, ${dateObj.getDate()} ${monthName}, ${timeStr}`;
+  };
 
   if (isLoading) {
     return (
@@ -761,150 +807,168 @@ export const EventCreated: React.FC = () => {
     );
   }
 
+  if (!event) {
+    return (
+      <div className="flex flex-col h-screen bg-background justify-center items-center">
+        <div className="text-white">{t('events.eventNotFound')}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-background justify-between pb-10 pt-10 px-6 lg:pb-6 lg:pt-6 lg:px-8">
-      <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
-      <div className="flex flex-col items-center text-center">
-        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative lg:w-16 lg:h-16 lg:mb-4">
+    <div className="flex flex-col h-screen bg-background justify-between pb-10 pt-10 px-6 lg:pb-4 lg:pt-4 lg:px-8 xl:pb-6 xl:pt-6">
+      <div className="lg:max-w-3xl lg:mx-auto lg:w-full">
+      <div className="flex flex-col items-center text-center lg:mb-4">
+        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative lg:w-10 lg:h-10 lg:mb-2 xl:w-12 xl:h-12 xl:mb-2.5">
           <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
-          <span className="material-symbols-outlined text-4xl lg:text-3xl">
+          <span className="material-symbols-outlined text-4xl lg:text-xl xl:text-2xl">
             check_circle
           </span>
         </div>
-        <h1 className="text-4xl font-extrabold mb-2 lg:text-2xl lg:mb-1.5">Game On!</h1>
-        <p className="text-slate-400 mb-4 lg:text-sm lg:mb-3">
-          Your squad is ready to be assembled. Event created successfully!
+        <h1 className="text-4xl font-extrabold mb-2 lg:text-lg lg:mb-0.5 xl:text-xl xl:mb-1">{t('events.eventCreated.gameOn')}</h1>
+        <p className="text-slate-400 mb-4 lg:text-xs lg:mb-2 xl:text-xs xl:mb-2.5">
+          {t('events.eventCreated.successMessage')}
         </p>
         {event?.code && (
-          <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-6 py-4 mb-4 lg:px-4 lg:py-3 lg:mb-3 lg:rounded-lg">
-            <p className="text-xs text-slate-400 mb-2 lg:text-[11px] lg:mb-1.5">{t('events.eventCode')}</p>
-            <div className="flex items-center gap-3 lg:gap-2">
-              <code className="text-2xl font-bold text-primary tracking-wider lg:text-xl">
-                {event.code}
-              </code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(event.code);
-                  // You could add a toast notification here
-                }}
-                className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors lg:p-1.5"
-                title="Copy code"
-              >
-                <span className="material-symbols-outlined text-sm lg:text-xs">
-                  content_copy
-                </span>
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-2 lg:text-[11px] lg:mt-1.5">
-              {t('events.shareCode')}
-            </p>
+          <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-6 py-4 mb-4 lg:px-2.5 lg:py-1.5 lg:mb-2 lg:rounded-lg lg:border lg:border-primary/30 xl:px-3 xl:py-2 xl:mb-2.5">
+          <p className="text-xs text-slate-400 mb-2 lg:text-[9px] lg:mb-0.5 xl:text-[10px] xl:mb-1">{t('events.eventCode')}</p>
+          <div className="flex items-center gap-3 lg:gap-1.5 xl:gap-2">
+            <code className="text-2xl font-bold text-primary tracking-wider lg:text-base xl:text-lg">
+              {event.code}
+            </code>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(event.code);
+                // You could add a toast notification here
+              }}
+              className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors lg:p-0.5 lg:rounded-md xl:p-1"
+              title={t('events.eventCreated.copyCode')}
+            >
+              <span className="material-symbols-outlined text-sm lg:text-xs xl:text-xs">
+                content_copy
+              </span>
+            </button>
           </div>
+          <p className="text-xs text-slate-500 mt-2 lg:text-[9px] lg:mt-0.5 xl:text-[10px] xl:mt-1">
+            {t('events.shareCode')}
+          </p>
+        </div>
         )}
       </div>
 
       <div className="w-full bg-surface border border-white/10 rounded-xl overflow-hidden shadow-2xl lg:rounded-lg">
-        <div className="h-40 relative lg:h-32">
-          <img
-            src="https://images.unsplash.com/photo-1575361204480-aadea25e6e68"
-            className="w-full h-full object-cover"
-            alt="Event"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent"></div>
-          <div className="absolute top-3 right-3 bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10">
-            <span className="material-symbols-outlined text-green-400 text-xs">
-              group
-            </span>
-            <span className="text-[10px] font-bold uppercase">
-              {spotsLeft > 0
-                ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
-                : t('events.full')}
-            </span>
-          </div>
-        </div>
-        <div className="p-5 space-y-4 lg:p-4 lg:space-y-3">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold leading-tight lg:text-base">
-                Sunday Morning Football
-              </h2>
-              <p className="text-primary text-sm lg:text-xs">Touchdown Titans</p>
+        {event.image && (
+          <div className="h-40 relative lg:h-24 xl:h-28">
+            <img
+              src={event.image}
+              className="w-full h-full object-cover"
+              alt={event.title}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent"></div>
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10 lg:top-2 lg:right-2 lg:px-2 lg:py-0.5 xl:top-2.5 xl:right-2.5 xl:px-2.5">
+              <span className="material-symbols-outlined text-green-400 text-xs lg:text-[10px] xl:text-xs">
+                group
+              </span>
+              <span className="text-[10px] font-bold uppercase lg:text-[9px] xl:text-[10px]">
+                {spotsLeft > 0
+                  ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
+                  : t('events.full')}
+              </span>
             </div>
-            <div className="bg-gradient-to-r from-yellow-400 to-green-400 p-[1px] rounded-lg">
-              <div className="bg-black/80 px-2 py-1 rounded-[7px]">
-                <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-green-400">
-                  GOLD LEAGUE
+          </div>
+        )}
+        <div className="p-5 space-y-4 lg:p-3 lg:space-y-2 xl:p-4 xl:space-y-3">
+          {!event.image && (
+            <div className="flex justify-end mb-2 lg:mb-1 xl:mb-1.5">
+              <div className="bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10 lg:px-2 lg:py-0.5 xl:px-2.5">
+                <span className="material-symbols-outlined text-green-400 text-xs lg:text-[10px] xl:text-xs">
+                  group
+                </span>
+                <span className="text-[10px] font-bold uppercase lg:text-[9px] xl:text-[10px]">
+                  {spotsLeft > 0
+                    ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
+                    : t('events.full')}
                 </span>
               </div>
             </div>
+          )}
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-xl font-bold leading-tight lg:text-sm lg:leading-snug xl:text-base">
+                {event.title}
+              </h2>
+              <p className="text-primary text-sm lg:text-xs xl:text-sm">{event.sport}</p>
+            </div>
+            {event.competitive && (
+              <div className="bg-gradient-to-r from-yellow-400 to-green-400 p-[1px] rounded-lg lg:rounded-md">
+                <div className="bg-black/80 px-2 py-1 rounded-[7px] lg:px-1.5 lg:py-0.5 xl:px-2 xl:py-1">
+                  <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-green-400 lg:text-[10px] xl:text-xs">
+                    {event.skillLevel.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="border-t border-white/10 pt-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
-                <span className="material-symbols-outlined text-sm">
+          <div className="border-t border-white/10 pt-4 space-y-3 lg:pt-2 lg:space-y-2 xl:pt-3 xl:space-y-2.5">
+            <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 lg:w-6 lg:h-6 xl:w-7 xl:h-7">
+                <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
                   calendar_month
                 </span>
               </div>
               <div>
-                <p className="text-xs text-slate-400">{t('events.dateTime')}</p>
-                <p className="font-medium text-sm">Oct 24, 10:00 AM</p>
+                <p className="text-xs text-slate-400 lg:text-[10px] xl:text-xs">{t('events.dateTime')}</p>
+                <p className="font-medium text-sm lg:text-xs xl:text-sm">{formatEventDate(event.date, event.time, event.endTime)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
-                <span className="material-symbols-outlined text-sm">
+            <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 lg:w-6 lg:h-6 xl:w-7 xl:h-7">
+                <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
                   location_on
                 </span>
               </div>
               <div>
-                <p className="text-xs text-slate-400">Location</p>
-                <p className="font-medium text-sm">Central Park Field 3</p>
+                <p className="text-xs text-slate-400 lg:text-[10px] xl:text-xs">{t('events.location')}</p>
+                <p className="font-medium text-sm lg:text-xs xl:text-sm">{event.location}</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex items-center justify-between lg:p-2 xl:p-2.5">
+        <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
           <div className="flex -space-x-2">
-            <Avatar
-              src="https://i.pravatar.cc/150?u=p1"
-              size="w-8 h-8"
-              className="ring-2 ring-background"
-            />
-            <Avatar
-              src="https://i.pravatar.cc/150?u=p2"
-              size="w-8 h-8"
-              className="ring-2 ring-background"
-            />
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs ring-2 ring-background">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs ring-2 ring-background lg:w-6 lg:h-6 lg:text-[10px] xl:w-7 xl:h-7">
               +
             </div>
           </div>
-          <span className="text-sm font-medium">Invite your crew</span>
+          <span className="text-sm font-medium lg:text-xs xl:text-sm">{t('events.eventCreated.inviteCrew')}</span>
         </div>
-        <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-          <span className="material-symbols-outlined text-sm">
+        <button 
+          onClick={() => event && navigate(`/event/${event.id}`)}
+          className="w-8 h-8 rounded-full bg-primary flex items-center justify-center lg:w-6 lg:h-6 xl:w-7 xl:h-7"
+        >
+          <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
             arrow_forward
           </span>
         </button>
       </div>
 
-      <div className="space-y-3 w-full lg:space-y-2">
+      <div className="space-y-3 w-full lg:space-y-2 xl:space-y-2.5">
         {event && (
           <button
             onClick={() => navigate(`/event/${event.id}`)}
-            className="w-full py-4 bg-primary rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:py-3 lg:text-sm lg:rounded-lg"
+            className="w-full py-4 bg-primary rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm"
           >
-            <span className="material-symbols-outlined lg:text-lg">visibility</span> View
-            {t('events.eventDetails')}
+            <span className="material-symbols-outlined lg:text-base xl:text-lg">visibility</span> {t('events.eventCreated.viewEventDetails')} {t('events.eventDetails')}
           </button>
         )}
         <button
           onClick={() => navigate("/home")}
-          className="w-full py-4 bg-transparent border border-white/20 rounded-xl font-medium hover:bg-white/5 lg:py-3 lg:text-sm lg:rounded-lg"
+          className="w-full py-4 bg-transparent border border-white/20 rounded-xl font-medium hover:bg-white/5 lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm"
         >
-          Return to Dashboard
+          {t('events.eventCreated.returnToDashboard')}
         </button>
       </div>
       </div>
@@ -915,7 +979,7 @@ export const EventCreated: React.FC = () => {
 export const OrganizerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { getEvent, events, approveRequest, denyRequest, getEventRequests, inviteFriendToEvent, getEventInvitations } =
+  const { getEvent, approveRequest, denyRequest, getEventRequests, inviteFriendToEvent, getEventInvitations } =
     useEvents();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -1225,20 +1289,6 @@ export const OrganizerDashboard: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const days = [
-      t('date.days.sunday'),
-      t('date.days.monday'),
-      t('date.days.tuesday'),
-      t('date.days.wednesday'),
-      t('date.days.thursday'),
-      t('date.days.friday'),
-      t('date.days.saturday'),
-    ];
-    return days[date.getDay()];
-  };
-
   const formatTime = (timeString: string) => {
     const [hours, minutes] = timeString.split(":");
     const hour = parseInt(hours, 10);
@@ -1267,7 +1317,6 @@ export const OrganizerDashboard: React.FC = () => {
   }
 
   const spotsLeft = event.maxPlayers - event.currentPlayers;
-  const progressPercentage = (event.currentPlayers / event.maxPlayers) * 100;
 
   // Check if event is past
   const isEventPast = () => {
@@ -1546,7 +1595,7 @@ export const OrganizerDashboard: React.FC = () => {
                     {t('events.noPlayersYet')}
                   </div>
                 ) : (
-                  players.slice(0, 4).map((player, i) => (
+                  players.slice(0, 4).map((player) => (
                     <div
                       key={player.id}
                       className="flex items-center justify-between p-3 lg:p-2"
@@ -1727,7 +1776,7 @@ export const EventDetails: React.FC = () => {
       try {
         // Force reload from database first to get latest data
         const { eventService } = await import("../services/supabaseService");
-        let eventData = await eventService.getEvent(id);
+        let eventData: Event | null | undefined = await eventService.getEvent(id);
 
         // If not found in database, try context
         if (!eventData) {
@@ -1894,7 +1943,6 @@ export const EventDetails: React.FC = () => {
   // Reload players whenever event.players changes
   useEffect(() => {
     if (event && event.players && event.players.length > 0) {
-      const playersKey = event.players.sort().join(",");
       console.log(
         "EventDetails: event.players changed, reloading player profiles:",
         event.players
@@ -1966,18 +2014,6 @@ export const EventDetails: React.FC = () => {
       return `${formatTime(startTime)} - ${formatTime(endTime)}`;
     }
     return formatTime(startTime);
-  };
-
-  const getSportIcon = (sport: string) => {
-    const iconMap: Record<string, string> = {
-      Tennis: "sports_tennis",
-      Pickleball: "sports_tennis",
-      Badminton: "sports_tennis",
-      Basketball: "sports_basketball",
-      Soccer: "sports_soccer",
-      Volleyball: "sports_volleyball",
-    };
-    return iconMap[sport] || "sports";
   };
 
   const handleGetDirections = () => {
@@ -2672,7 +2708,8 @@ export const EventDetails: React.FC = () => {
 };
 
 export const EditEvent: React.FC = () => {
-  const navigate = useNavigate();
+  useNavigate();
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
       <Header

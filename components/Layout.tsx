@@ -57,10 +57,13 @@ export const BottomNav: React.FC = () => {
             async (payload) => {
               logger.debug('Real-time invitation change received');
               
+              const newRecord = payload.new as any;
+              const oldRecord = payload.old as any;
+              
               // Filter in callback to avoid binding mismatch
               const isRelevant = 
-                (payload.new && payload.new.user_id === userId) ||
-                (payload.old && payload.old.user_id === userId);
+                (newRecord && newRecord.user_id === userId) ||
+                (oldRecord && oldRecord.user_id === userId);
               
               if (!isRelevant) {
                 return;
@@ -70,8 +73,8 @@ export const BottomNav: React.FC = () => {
               // For INSERT: new record with status 'invited'
               // For UPDATE: status changed to/from 'invited' 
               // For DELETE: old record had status 'invited'
-              const isNewInvitation = payload.new && payload.new.status === 'invited' && payload.new.user_id === userId;
-              const wasInvitation = payload.old && payload.old.status === 'invited' && payload.old.user_id === userId;
+              const isNewInvitation = newRecord && newRecord.status === 'invited' && newRecord.user_id === userId;
+              const wasInvitation = oldRecord && oldRecord.status === 'invited' && oldRecord.user_id === userId;
               const isInvitationChange = isNewInvitation || wasInvitation;
               
               if (isInvitationChange) {
@@ -217,7 +220,7 @@ export const Avatar: React.FC<{ src: string; size?: string; alt?: string; classN
   />
 );
 
-export const Badge: React.FC<{ children: React.ReactNode; type?: 'gold' | 'neon' | 'primary' | 'slate' }> = ({ children, type = 'slate' }) => {
+export const Badge: React.FC<{ children: React.ReactNode; type?: 'gold' | 'neon' | 'primary' | 'slate'; className?: string }> = ({ children, type = 'slate', className = '' }) => {
   const styles = {
     gold: 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black',
     neon: 'bg-gradient-to-r from-[#39FF14] to-[#32CD32] text-black',
@@ -226,7 +229,7 @@ export const Badge: React.FC<{ children: React.ReactNode; type?: 'gold' | 'neon'
   };
 
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm ${styles[type]}`}>
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm ${styles[type]} ${className}`.trim()}>
       {children}
     </span>
   );

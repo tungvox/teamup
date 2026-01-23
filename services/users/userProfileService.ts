@@ -51,19 +51,20 @@ function mapUserFromDB(row: any): User {
 }
 
 function mapUserToDB(user: Partial<User>): any {
-  return {
-    email: user.email,
-    user_id: user.userId,
-    first_name: user.firstName,
-    last_name: user.lastName,
-    avatar: user.avatar,
-    location: user.location,
-    sports: user.sports,
-    stats: user.stats,
-    level: user.level,
-    friends: user.friends,
-    friend_requests: user.friendRequests,
-  };
+  // Only include fields that are actually provided (not undefined)
+  const mapped: any = {};
+  if (user.email !== undefined) mapped.email = user.email;
+  if (user.userId !== undefined) mapped.user_id = user.userId;
+  if (user.firstName !== undefined) mapped.first_name = user.firstName;
+  if (user.lastName !== undefined) mapped.last_name = user.lastName;
+  if (user.avatar !== undefined) mapped.avatar = user.avatar;
+  if (user.location !== undefined) mapped.location = user.location;
+  if (user.sports !== undefined) mapped.sports = user.sports;
+  if (user.stats !== undefined) mapped.stats = user.stats;
+  if (user.level !== undefined) mapped.level = user.level;
+  if (user.friends !== undefined) mapped.friends = user.friends;
+  if (user.friendRequests !== undefined) mapped.friend_requests = user.friendRequests;
+  return mapped;
 }
 
 export const getUserProfile = async (clerkId: string): Promise<User | null> => {
@@ -116,10 +117,10 @@ export const createUserProfile = async (userData: {
       p_user_id: userId,
       p_first_name: userData.firstName,
       p_last_name: userData.lastName,
-      p_avatar: userData.avatar || null,
-      p_location: userData.location || null,
-      p_sports: userData.sports || [],
-    });
+      p_avatar: userData.avatar ?? null,
+      p_location: userData.location ?? null,
+      p_sports: userData.sports ?? [],
+    } as any);
 
   if (!functionError && functionData) {
     logger.log('Profile created via function');
@@ -147,9 +148,9 @@ export const createUserProfile = async (userData: {
         mvps: 0,
       },
       level: 1,
-      friends: [],
-      friend_requests: [],
-    })
+      friends: [] as string[],
+      friend_requests: [] as string[],
+    } as any)
     .select()
     .single();
   
@@ -174,10 +175,21 @@ export const getUserByUserId = async (userId: string): Promise<User | null> => {
 };
 
 export const updateUserProfile = async (clerkId: string, updates: Partial<User>): Promise<void> => {
-  const { error } = await supabase
-    .from('user_profiles')
-    .update(mapUserToDB(updates))
-    .eq('clerk_id', clerkId);
-  
-  if (error) throw error;
+  const mappedUpdates = mapUserToDB(updates);
+  logger.log('Updating user profile:', { clerkId, updates, mappedUpdates });
+
+  // Use RPC because RLS "Users can update own profile" relies on auth.jwt() ->> 'sub',
+  // which is null when using Clerk + anon key. The update_user_profile RPC uses
+  // SECURITY DEFINER to bypass RLS.
+  const { error: rpcError } = await supabase.rpc('update_user_profile', {
+    p_clerk_id: clerkId,
+    p_updates: mappedUpdates,
+  } as any);
+
+  if (rpcError) {
+    logger.error('Error updating user profile via RPC:', rpcError);
+    throw rpcError;
+  }
+
+  logger.log('User profile updated successfully via RPC');
 };

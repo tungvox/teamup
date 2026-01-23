@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { SignIn, SignUp } from '@clerk/clerk-react';
 import { Header } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { validators } from '../utils/validation';
 
 export const OnboardingLanding: React.FC = () => {
   const navigate = useNavigate();
@@ -84,7 +83,7 @@ export const OnboardingLanding: React.FC = () => {
         <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
           <div className="flex flex-col gap-2 lg:gap-2.5">
             <button 
-              onClick={() => navigate('/create-profile')}
+              onClick={() => navigate('/create-profile', { state: { skipIntro: true } })}
               className="w-full py-2.5 bg-gradient-to-r from-primary via-blue-600 to-primary hover:from-primary-hover hover:via-blue-700 hover:to-primary-hover active:scale-[0.98] transition-all rounded-lg shadow-lg shadow-primary/30 text-white font-bold text-sm flex items-center justify-center gap-1.5 group lg:py-3 lg:text-base lg:rounded-xl"
             >
               <span>{t('onboarding.getStartedFree')}</span>
@@ -175,6 +174,7 @@ export const Login: React.FC = () => {
       }, 50);
       return () => clearTimeout(timer);
     }
+    return;
   }, [isAuthenticated, isLoading, clerkUser, navigate]);
 
   // Show loading state if Clerk user exists but profile is still loading
@@ -232,8 +232,12 @@ export const Login: React.FC = () => {
 
 export const CreateProfile: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, user, clerkUser } = useAuth();
+  const location = useLocation();
+  const { isAuthenticated, isLoading, user, clerkUser, refreshUser } = useAuth();
+  const { t } = useLanguage();
   const hasRedirectedRef = React.useRef(false);
+  const skipIntro = location.state?.skipIntro || false;
+  const hasRefreshedRef = React.useRef(false);
 
   useEffect(() => {
     // Debug logging
@@ -249,22 +253,44 @@ export const CreateProfile: React.FC = () => {
     // If we've already redirected, don't do anything
     if (hasRedirectedRef.current) return;
 
-    // If Clerk user exists and loading is done, redirect (don't wait for profile)
+    // Wait for loading to complete and Clerk user to exist
     if (clerkUser && !isLoading) {
-      console.log('CreateProfile: Clerk user exists and loading done, redirecting...');
-      hasRedirectedRef.current = true;
-      
-      // Redirect immediately without delay
-      if (user && user.location) {
-        // User has location, go to home
-        console.log('CreateProfile: Redirecting to /home (has location)');
-        navigate('/home', { replace: true });
-      } else {
-        // New user without location, go to set-location
-        console.log('CreateProfile: Redirecting to /set-location (no location or no profile yet)');
-        navigate('/set-location', { replace: true });
+      // If user profile is null but Clerk user exists, try refreshing once (for existing users)
+      if (!user && !hasRefreshedRef.current) {
+        console.log('CreateProfile: User profile not found, refreshing...');
+        hasRefreshedRef.current = true;
+        refreshUser();
+        return; // Wait for refresh to complete - useEffect will run again when user updates
       }
+      
+      // Give a delay to ensure profile is loaded (especially for existing users after refresh)
+      // If we just refreshed, wait longer for the profile to load
+      const delay = hasRefreshedRef.current ? 1000 : 500;
+      const redirectTimer = setTimeout(() => {
+        if (hasRedirectedRef.current) return;
+        
+        console.log('CreateProfile: Clerk user exists and loading done, redirecting...', {
+          hasUser: !!user,
+          hasLocation: !!(user?.location),
+          hasRefreshed: hasRefreshedRef.current
+        });
+        hasRedirectedRef.current = true;
+        
+        // Check if user has a location
+        if (user && user.location) {
+          // Existing user with location, go to home
+          console.log('CreateProfile: Redirecting to /home (has location)');
+          navigate('/home', { replace: true });
+        } else {
+          // New user without location, go to set-location
+          console.log('CreateProfile: Redirecting to /set-location (no location or no profile yet)');
+          navigate('/set-location', { replace: true });
+        }
+      }, delay);
+      
+      return () => clearTimeout(redirectTimer);
     }
+    return;
   }, [isLoading, user, clerkUser, navigate]);
 
   // Show loading state while profile is being created
@@ -291,18 +317,19 @@ export const CreateProfile: React.FC = () => {
       <Header />
       <main className="flex-1 px-6 pt-4 pb-8 flex flex-col items-center justify-center">
         <div className="w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
-          <div className="mb-8 text-center">
-          <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-2">
-            Let's get you <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">in the game.</span>
-          </h1>
-            <p className="text-slate-400 font-medium">Create your account to start connecting.</p>
-        </div>
+          {!skipIntro && (
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-2">
+                {t('onboarding.letsGetYouInGame')} <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">{t('onboarding.inTheGame')}</span>
+              </h1>
+              <p className="text-slate-400 font-medium">{t('onboarding.createAccountToStart')}</p>
+            </div>
+          )}
           <div className="w-full" style={{ minHeight: '400px' }}>
             <SignUp 
               routing="hash"
               signInUrl="/#/login"
-              afterSignUpUrl="/#/set-location"
               appearance={{
                 elements: {
                   rootBox: "w-full",
@@ -336,8 +363,23 @@ export const CreateProfile: React.FC = () => {
 
 export const SetLocation: React.FC = () => {
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isLoading, clerkUser } = useAuth();
+  const { t } = useLanguage();
   const [selectedCity, setSelectedCity] = useState('Bà Rịa - Vũng Tàu');
+  const [isSaving, setIsSaving] = useState(false);
+  const hasRedirectedRef = React.useRef(false);
+
+  // Redirect existing users who already have a location
+  useEffect(() => {
+    if (hasRedirectedRef.current) return;
+    
+    // Wait for loading to complete
+    if (!isLoading && user && user.location) {
+      console.log('SetLocation: User already has location, redirecting to /home');
+      hasRedirectedRef.current = true;
+      navigate('/home', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   // Vietnamese cities list
   const vietnamCities = [
@@ -376,26 +418,41 @@ export const SetLocation: React.FC = () => {
     { name: "Kiên Giang", english: "Kien Giang" }
   ];
 
-  const handleConfirm = () => {
-    if (user) {
-      updateUser({ location: selectedCity });
+  const handleConfirm = async () => {
+    if (!user || !clerkUser) {
+      console.error('User or Clerk user not available');
+      alert('User not found. Please try logging in again.');
+      return;
+    }
+    
+    if (isSaving) return; // Prevent double submission
+    
+    setIsSaving(true);
+    try {
+      console.log('Updating location:', { selectedCity, userId: user.id, clerkId: clerkUser.id });
+      await updateUser({ location: selectedCity });
+      console.log('Location updated successfully:', selectedCity);
       navigate('/success');
+    } catch (error) {
+      console.error('Error updating location:', error);
+      alert('Failed to save location. Please try again.');
+      setIsSaving(false);
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-white">
-      <Header title="Step 2 of 4" />
+      <Header title={t('onboarding.step2Of4')} />
       <main className="flex-1 flex flex-col px-5 pb-32 lg:px-6 lg:pb-6">
         <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
         <div className="flex flex-col gap-2 pt-4 pb-6 lg:pt-3 lg:pb-4 lg:gap-1.5">
-          <h1 className="text-3xl font-bold leading-tight lg:text-2xl">Where do you play?</h1>
-          <p className="text-slate-400 text-base lg:text-sm">Set your home base to find teams, tournaments, and matches near you.</p>
+          <h1 className="text-3xl font-bold leading-tight lg:text-2xl">{t('onboarding.whereDoYouPlay')}</h1>
+          <p className="text-slate-400 text-base lg:text-sm">{t('onboarding.setHomeBase')}</p>
         </div>
 
         {/* City Selector */}
         <div className="mb-6 lg:mb-4">
-          <label className="text-sm font-medium text-slate-400 mb-2 block lg:text-xs lg:mb-1.5">Chọn thành phố</label>
+          <label className="text-sm font-medium text-slate-400 mb-2 block lg:text-xs lg:mb-1.5">{t('onboarding.selectCity')}</label>
           <select
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
@@ -412,8 +469,12 @@ export const SetLocation: React.FC = () => {
       </main>
       <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent z-30 max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto lg:relative lg:p-4 lg:pt-4">
         <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
-        <button onClick={handleConfirm} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all lg:h-10 lg:text-base lg:rounded-lg">
-          Confirm Location
+        <button 
+          onClick={handleConfirm} 
+          disabled={isSaving || !user}
+          className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all lg:h-10 lg:text-base lg:rounded-lg"
+        >
+          {isSaving ? 'Saving...' : t('onboarding.confirmLocation')}
         </button>
         </div>
       </div>
@@ -423,6 +484,7 @@ export const SetLocation: React.FC = () => {
 
 export const RegistrationSuccess: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-white px-6 relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[600px] h-[500px] bg-primary/10 blur-[120px] rounded-full pointer-events-none"></div>
@@ -438,9 +500,9 @@ export const RegistrationSuccess: React.FC = () => {
       </div>
 
       <div className="text-center mb-10 z-10">
-        <h1 className="text-4xl font-extrabold mb-3">You're In!</h1>
+        <h1 className="text-4xl font-extrabold mb-3">{t('onboarding.youreIn')}</h1>
         <p className="text-slate-400 text-lg leading-relaxed">
-          Your account has been created successfully. Get ready to find your squad.
+          {t('onboarding.accountCreatedSuccess')}
         </p>
       </div>
 
@@ -448,9 +510,9 @@ export const RegistrationSuccess: React.FC = () => {
         <div className="relative w-full h-40 bg-cover bg-center rounded-xl overflow-hidden" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1770&q=80')" }}>
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent p-4 flex items-end justify-between">
             <div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#ffd700] text-black uppercase tracking-wider mb-1 inline-block">New</span>
-              <p className="text-white font-bold text-lg">Pro League Access</p>
-              <p className="text-slate-300 text-xs">Unlocked for your profile</p>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#ffd700] text-black uppercase tracking-wider mb-1 inline-block">{t('onboarding.new')}</span>
+              <p className="text-white font-bold text-lg">{t('onboarding.proLeagueAccess')}</p>
+              <p className="text-slate-300 text-xs">{t('onboarding.unlockedForProfile')}</p>
             </div>
             <div className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
               <span className="material-symbols-outlined text-sm">arrow_forward</span>
@@ -461,10 +523,10 @@ export const RegistrationSuccess: React.FC = () => {
 
       <div className="w-full flex flex-col gap-3 z-10">
         <button onClick={() => navigate('/home')} className="w-full h-14 rounded-xl bg-primary hover:bg-primary-hover text-white text-lg font-bold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-          Find a Game
+          {t('onboarding.findAGame')}
         </button>
         <button onClick={() => navigate('/profile')} className="w-full h-14 rounded-xl bg-transparent border border-white/20 text-white text-lg font-bold hover:bg-white/5 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-          Edit Profile
+          {t('onboarding.editProfile')}
         </button>
       </div>
     </div>

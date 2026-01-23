@@ -130,9 +130,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         async (payload) => {
           logger.debug('Real-time update received for user profile');
           
+          const newRecord = payload.new as any;
+          
           // Filter in callback to avoid binding mismatch
           const isRelevant = 
-            payload.new && payload.new.clerk_id === clerkUser.id;
+            newRecord && newRecord.clerk_id === clerkUser.id;
           
           if (!isRelevant) {
             return;

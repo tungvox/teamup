@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Avatar, Header } from "../components/Layout";
-import { useMessages } from "../context/MessageContext";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 import { useLanguage } from "../context/LanguageContext";
 import { settingsService } from "../services/settingsService";
-import { userService } from "../services/userService";
-import { User, Message } from "../types";
 
 export const ChatDetail: React.FC = () => {
   const navigate = useNavigate();

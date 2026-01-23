@@ -8,7 +8,7 @@ interface EventContextType {
   events: Event[];
   myEvents: Event[];
   isLoading: boolean;
-  createEvent: (eventData: Omit<Event, 'id' | 'organizerId' | 'organizerName' | 'currentPlayers' | 'players' | 'createdAt' | 'status'>) => Promise<Event>;
+  createEvent: (eventData: Omit<Event, 'id' | 'organizerId' | 'organizerName' | 'currentPlayers' | 'players' | 'createdAt' | 'status' | 'code'>) => Promise<Event>;
   updateEvent: (id: string, updates: Partial<Event>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
   requestToJoin: (eventId: string) => Promise<void>;
@@ -53,7 +53,7 @@ export const EventProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  const createEvent = async (eventData: Omit<Event, 'id' | 'organizerId' | 'organizerName' | 'currentPlayers' | 'players' | 'createdAt' | 'status'>) => {
+  const createEvent = async (eventData: Omit<Event, 'id' | 'organizerId' | 'organizerName' | 'currentPlayers' | 'players' | 'createdAt' | 'status' | 'code'>) => {
     if (!user) throw new Error('Must be logged in to create events');
     
     const newEvent = await eventService.createEvent({
