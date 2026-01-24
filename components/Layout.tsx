@@ -4,6 +4,7 @@ import { useEvents } from '../context/EventContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
+import { supabase } from '../lib/supabase';
 
 export const BottomNav: React.FC = () => {
   const navigate = useNavigate();
@@ -218,18 +219,60 @@ export const Header: React.FC<{
   );
 };
 
-export const Avatar: React.FC<{ src: string; size?: string; alt?: string; className?: string }> = ({ 
-  src, 
-  size = "h-10 w-10", 
+export const Avatar: React.FC<{ src: string; size?: string; alt?: string; className?: string }> = ({
+  src,
+  size = "h-10 w-10",
   alt = "User",
-  className = "" 
-}) => (
-  <img 
-    src={src} 
-    alt={alt} 
-    className={`${size} rounded-full object-cover border-2 border-surface ${className}`}
-  />
-);
+  className = "",
+}) => {
+  const [resolvedSrc, setResolvedSrc] = useState(src);
+
+  useEffect(() => {
+    const resolve = async () => {
+      if (!src) {
+        setResolvedSrc(src);
+        return;
+      }
+
+      // If src is already an absolute URL or data URL, just use it
+      if (
+        src.startsWith("http://") ||
+        src.startsWith("https://") ||
+        src.startsWith("data:")
+      ) {
+        setResolvedSrc(src);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.storage
+          .from("photo")
+          .createSignedUrl(src, 60 * 60); // 1 hour
+
+        if (error || !data?.signedUrl) {
+          logger.error("Error resolving avatar signed URL:", error);
+          setResolvedSrc(src);
+          return;
+        }
+
+        setResolvedSrc(data.signedUrl);
+      } catch (err) {
+        logger.error("Unexpected error resolving avatar signed URL:", err);
+        setResolvedSrc(src);
+      }
+    };
+
+    resolve();
+  }, [src]);
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={`${size} rounded-full object-cover border-2 border-surface ${className}`}
+    />
+  );
+};
 
 export const Badge: React.FC<{ children: React.ReactNode; type?: 'gold' | 'neon' | 'primary' | 'slate'; className?: string }> = ({ children, type = 'slate', className = '' }) => {
   const styles = {
