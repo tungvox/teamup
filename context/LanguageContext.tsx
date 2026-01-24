@@ -365,7 +365,7 @@ const translations: Record<Language, Record<string, string>> = {
     "events.skillLevel.intermediate": "Trung bình",
     "events.skillLevel.advanced": "Nâng cao",
     "events.skillLevel.all": "Tất cả",
-    "events.host": "CHỦ",
+    "events.host": "Người tổ chức",
     "events.leaveEvent": "Rời sự kiện",
     "events.changeLocation": "Thay đổi địa điểm",
     "events.requestToJoin": "Yêu cầu tham gia",

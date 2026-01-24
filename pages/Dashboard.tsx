@@ -22,6 +22,7 @@ import {
   removeFriend,
 } from "../services/supabaseService";
 import { isValidUserId } from "../utils/userId";
+import { supabase } from "../lib/supabase";
 
 interface Sport {
   id: string;
@@ -61,6 +62,7 @@ export const Home: React.FC = () => {
       setSelectedLocation(user.location);
     }
   }, [user?.location]);
+
 
   // Helper function to normalize Vietnamese text (remove diacritics and normalize)
   const normalizeVietnamese = (text: string): string => {
@@ -252,13 +254,27 @@ export const Home: React.FC = () => {
       result = result.filter((e) => {
         return e.date === mapViewDate;
       });
-      // In map view, include past events (they will be shown with grey markers)
-      return result.sort((a, b) => {
-        // Sort by date and time (earliest first)
-        const dateTimeA = new Date(`${a.date}T${a.time}`).getTime();
-        const dateTimeB = new Date(`${b.date}T${b.time}`).getTime();
-        return dateTimeA - dateTimeB;
-      });
+      // In map view, only show upcoming or currently happening events (no past events)
+      return result
+        .filter((e) => {
+          const eventDateTime = new Date(`${e.date}T${e.time}`);
+          const eventEndTime = e.endTime
+            ? new Date(`${e.date}T${e.endTime}`)
+            : null;
+
+          // If event has an end time, show if it hasn't ended yet
+          if (eventEndTime) {
+            return eventEndTime >= now;
+          }
+          // If no end time, show if start time hasn't passed yet
+          return eventDateTime >= now;
+        })
+        .sort((a, b) => {
+          // Sort by date and time (earliest first)
+          const dateTimeA = new Date(`${a.date}T${a.time}`).getTime();
+          const dateTimeB = new Date(`${b.date}T${b.time}`).getTime();
+          return dateTimeA - dateTimeB;
+        });
     }
 
     // Filter out past events and sort by start time (for non-map views)
@@ -692,7 +708,10 @@ export const Home: React.FC = () => {
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/5 px-5 pt-4 pb-3 lg:px-6 lg:py-2">
         <div className="flex items-center gap-2 mb-2 lg:gap-1.5 lg:mb-1">
           <Avatar
-            src={user?.avatar || `https://i.pravatar.cc/150?u=${user?.id}`}
+            src={
+              user?.avatar ||
+              (user?.id ? `https://i.pravatar.cc/150?u=${user.id}` : "")
+            }
           />
           <div>
             <p className="text-[10px] font-medium text-text-secondary lg:text-[9px]">
@@ -1196,6 +1215,8 @@ export const Home: React.FC = () => {
                 dayEventsForSelectedDay.map((event) => {
                   const now = new Date();
                   const eventPlayers = eventPlayersMap[event.id] || [];
+                  const hostPlayer =
+                    eventPlayers.find((p) => p.id === event.organizerId) || null;
                   const [hours, minutes] = event.time.split(":");
                   const hour = parseInt(hours, 10);
                   const displayHour = hour % 12 || 12;
@@ -1321,11 +1342,26 @@ export const Home: React.FC = () => {
                             </div>
 
                             {/* Location */}
-                            <div className="flex items-center gap-1.5 text-xs text-slate-300 lg:text-[11px]">
-                              <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
-                                location_on
-                              </span>
-                              <span className="truncate">{event.location}</span>
+                            <div className="flex flex-col gap-1 text-xs lg:text-[11px] text-slate-300">
+                              <div className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
+                                  location_on
+                                </span>
+                                <span className="truncate">{event.location}</span>
+                              </div>
+                              {hostPlayer && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-sm text-amber-400 lg:text-xs">
+                                    person
+                                  </span>
+                                  <span className="font-semibold text-amber-300">
+                                    {t("events.host")}
+                                  </span>
+                                  <span className="truncate text-slate-200">
+                                    {hostPlayer.firstName} {hostPlayer.lastName}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           {event.description && (
@@ -2797,12 +2833,130 @@ export const Messages: React.FC = () => {
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isLoading, signOut, refreshUser } = useAuth();
+  const { user, isLoading, signOut, refreshUser, updateUser } = useAuth();
   useEvents(); // Profile may use events/acceptInvitation via child or later
   const { t } = useLanguage();
   const [friends, setFriends] = useState<User[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
   const [sports, setSports] = useState<Sport[]>([]);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [firstNameInput, setFirstNameInput] = useState(user?.firstName || "");
+  const [lastNameInput, setLastNameInput] = useState(user?.lastName || "");
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setFirstNameInput(user.firstName || "");
+    setLastNameInput(user.lastName || "");
+  }, [user?.firstName, user?.lastName]);
+
+  // Generate signed URL for private bucket avatar
+  useEffect(() => {
+    const generateSignedUrl = async () => {
+      if (!user?.avatar) {
+        setAvatarSignedUrl(null);
+        return;
+      }
+
+      // If it's already a full URL (http/https), just use it directly
+      if (user.avatar.startsWith("http://") || user.avatar.startsWith("https://")) {
+        setAvatarSignedUrl(user.avatar);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.storage
+          .from("photo")
+          .createSignedUrl(user.avatar, 60 * 60); // 1 hour
+
+        if (error || !data?.signedUrl) {
+          console.error("Error creating signed avatar URL:", error);
+          setAvatarSignedUrl(null);
+          return;
+        }
+
+        setAvatarSignedUrl(data.signedUrl);
+      } catch (err) {
+        console.error("Unexpected error creating signed avatar URL:", err);
+        setAvatarSignedUrl(null);
+      }
+    };
+
+    generateSignedUrl();
+  }, [user?.avatar]);
+
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Optimistic local preview
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarPreview(objectUrl);
+
+    setIsUpdatingAvatar(true);
+
+    try {
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const filePath = `${user.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("photo")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Store only the storage path in avatar for private bucket
+      await updateUser({ avatar: filePath });
+      await refreshUser();
+    } catch (error: any) {
+      console.error("Error uploading avatar:", error);
+      alert(error.message || "Failed to upload photo");
+    } finally {
+      setIsUpdatingAvatar(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleNameSave = async () => {
+    if (!user) return;
+    const trimmedFirstName = firstNameInput.trim();
+    const trimmedLastName = lastNameInput.trim();
+
+    if (!trimmedFirstName) {
+      alert("First name is required");
+      return;
+    }
+
+    setIsUpdatingName(true);
+
+    try {
+      await updateUser({
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
+      });
+      setIsEditingName(false);
+    } catch (error: any) {
+      console.error("Error updating name:", error);
+      alert(error.message || "Failed to update name");
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
+
+  const handleNameCancel = () => {
+    if (!user) return;
+    setFirstNameInput(user.firstName || "");
+    setLastNameInput(user.lastName || "");
+    setIsEditingName(false);
+  };
 
   // Load sports for display
   useEffect(() => {
@@ -2902,23 +3056,100 @@ export const Profile: React.FC = () => {
       </header>
 
       <div className="lg:max-w-4xl lg:mx-auto lg:w-full">
-      {/* Compact Profile Header */}
-      <div className="flex items-center gap-4 px-4 pt-4 pb-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-3">
-        <div className="relative">
-          <Avatar
-            src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`}
-            size="w-16 h-16"
-            className="border-2 border-primary/30 lg:w-14 lg:h-14"
-          />
-          <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-yellow-500 to-yellow-600 border-2 border-background px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg lg:px-1.5 lg:py-0.5">
-            <span className="material-symbols-outlined text-[10px] text-white lg:text-[9px]">
-              military_tech
-            </span>
-            <span className="text-[9px] font-bold text-white lg:text-[9px]">{level}</span>
+        {/* Compact Profile Header */}
+        <div className="flex items-center gap-4 px-4 pt-4 pb-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-3">
+          <div className="relative">
+            <Avatar
+              src={
+                avatarPreview ||
+                avatarSignedUrl ||
+                `https://i.pravatar.cc/150?u=${user.id}`
+              }
+              size="w-16 h-16"
+              className="border-2 border-primary/30 lg:w-14 lg:h-14"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUpdatingAvatar}
+              className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-background/90 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:bg-background transition-colors lg:w-6 lg:h-6"
+              title="Upload photo"
+            >
+              <span className="material-symbols-outlined text-[16px] lg:text-sm">
+                {isUpdatingAvatar ? "hourglass_top" : "photo_camera"}
+              </span>
+            </button>
+            <div className="absolute -bottom-1 -left-1 bg-gradient-to-r from-yellow-500 to-yellow-600 border-2 border-background px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg lg:px-1.5 lg:py-0.5">
+              <span className="material-symbols-outlined text-[10px] text-white lg:text-[9px]">
+                military_tech
+              </span>
+              <span className="text-[9px] font-bold text-white lg:text-[9px]">
+                {level}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold truncate lg:text-base">{fullName}</h2>
+          <div className="flex-1 min-w-0">
+            {isEditingName ? (
+              <div className="space-y-1">
+                <div className="flex gap-1.5 lg:gap-1.5">
+                  <input
+                    type="text"
+                    value={firstNameInput}
+                    onChange={(e) => setFirstNameInput(e.target.value)}
+                    placeholder="First name"
+                    className="flex-1 bg-surface/60 rounded-md px-2 py-1 text-sm outline-none border border-white/10 focus:border-primary transition-colors text-white lg:px-2 lg:py-1 lg:text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={lastNameInput}
+                    onChange={(e) => setLastNameInput(e.target.value)}
+                    placeholder="Last name"
+                    className="flex-1 bg-surface/60 rounded-md px-2 py-1 text-sm outline-none border border-white/10 focus:border-primary transition-colors text-white lg:px-2 lg:py-1 lg:text-sm"
+                  />
+                </div>
+                <div className="flex gap-1.5 lg:gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleNameSave}
+                    disabled={isUpdatingName}
+                    className="px-2.5 py-1 rounded-md bg-primary text-xs font-bold text-white hover:bg-primary/80 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
+                  >
+                    {isUpdatingName ? "..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNameCancel}
+                    disabled={isUpdatingName}
+                    className="px-2.5 py-1 rounded-md bg-surface/70 text-xs font-bold text-slate-200 hover:bg-surface/90 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-lg font-bold truncate lg:text-base">
+                  {fullName}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingName(true)}
+                  className="w-6 h-6 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-300 hover:text-white transition-colors lg:w-5 lg:h-5"
+                  title="Edit name"
+                >
+                  <span className="material-symbols-outlined text-[16px] lg:text-sm">
+                    edit
+                  </span>
+                </button>
+              </div>
+            )}
           {user.userId && (
             <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-0.5 lg:gap-1.5 lg:text-xs lg:mt-0.5">
               <span className="text-slate-400">ID:</span>
