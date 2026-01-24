@@ -5,6 +5,7 @@ import { useGoogleMaps } from '../lib/useGoogleMaps';
 import { Event } from '../types';
 import { Avatar } from './Layout';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
 const mapContainerStyle = {
   width: '100%',
@@ -34,6 +35,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
   centerLocation,
 }) => {
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
   const { isLoaded: isScriptLoaded, error: mapError, apiKey: googleMapsApiKey } = useGoogleMaps();
   const [mapCenter, setMapCenter] = useState(googleMapsDefaultLocation);
   const [mapZoom, setMapZoom] = useState(12);
@@ -160,6 +162,62 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
     });
   }, [eventsWithCoords, mapBounds]);
 
+  // Group visible events by approximate coordinates so we can show one marker per location
+  const markerGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        lat: number;
+        lng: number;
+        hasPast: boolean;
+        hasHappening: boolean;
+        hasUpcoming: boolean;
+        representativeEvent: EventWithCoords;
+      }
+    >();
+
+    const now = new Date();
+
+    visibleEvents.forEach((event) => {
+      if (!event.coordinates) return;
+      const { lat, lng } = event.coordinates;
+      const key = `${lat.toFixed(5)}:${lng.toFixed(5)}`;
+
+      const eventDateTime = new Date(`${event.date}T${event.time}`);
+      const endDateTime = event.endTime
+        ? new Date(`${event.date}T${event.endTime}`)
+        : null;
+
+      const isHappening = endDateTime
+        ? eventDateTime <= now && endDateTime >= now
+        : eventDateTime <= now &&
+          eventDateTime >= new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+      const isPast = !isHappening && eventDateTime < now;
+      const isUpcoming = !isHappening && !isPast;
+
+      const existing = groups.get(key);
+      if (existing) {
+        existing.hasPast = existing.hasPast || isPast;
+        existing.hasHappening = existing.hasHappening || isHappening;
+        existing.hasUpcoming = existing.hasUpcoming || isUpcoming;
+      } else {
+        groups.set(key, {
+          key,
+          lat,
+          lng,
+          hasPast: isPast,
+          hasHappening: isHappening,
+          hasUpcoming: isUpcoming,
+          representativeEvent: event,
+        });
+      }
+    });
+
+    return Array.from(groups.values());
+  }, [visibleEvents]);
+
   const onMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
     // Get initial bounds
@@ -207,12 +265,21 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
     const diff = eventDate.getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return `Today, ${time}`;
-    if (days === 1) return `Tomorrow, ${time}`;
-    return `${new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })}, ${time}`;
+    const formatTime = (timeStr: string) => {
+      // Reuse 24h or 12h based on locale; here keep simple HH:MM
+      return timeStr;
+    };
+
+    if (days === 0) return `${t("date.today")}, ${formatTime(time)}`;
+    if (days === 1) return `${t("date.tomorrow")}, ${formatTime(time)}`;
+
+    // Basic localized date string
+    const locale = language === 'vi' ? 'vi-VN' : 'en-US';
+    const dateLabel = new Date(date).toLocaleDateString(locale, {
+      month: 'short',
+      day: 'numeric',
+    });
+    return `${dateLabel}, ${formatTime(time)}`;
   };
 
   const getSportIcon = (sport: string) => {
@@ -312,6 +379,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
               streetViewControl: false,
               mapTypeControl: true,
               fullscreenControl: true,
+              gestureHandling: 'greedy',
               ...(googleMapsMapId ? { mapId: googleMapsMapId } : {
                 styles: [
                   {
@@ -338,27 +406,55 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
               }),
             }}
           >
-            {visibleEvents.map((event) => {
-              if (!event.coordinates) return null;
-              
-              // Check if event is past
-              const eventDateTime = new Date(`${event.date}T${event.time}`);
-              const now = new Date();
-              const isPast = eventDateTime < now;
+            {markerGroups.map((group) => {
+              const { key, lat, lng, hasPast, hasHappening, hasUpcoming, representativeEvent } = group;
+
+              // Determine colors present at this location
+              const colors: string[] = [];
+              if (hasPast) colors.push('#6b7280');     // grey
+              if (hasHappening) colors.push('#22c55e'); // green
+              if (hasUpcoming) colors.push('#3b82f6');  // blue
+
+              const uniqueColors = Array.from(new Set(colors));
+
+              let svgFill = uniqueColors[0] ?? '#3b82f6';
+              let gradientDef = '';
+
+              // If more than one status at this point, use a simple linear gradient
+              if (uniqueColors.length > 1) {
+                const stopCount = uniqueColors.length;
+                const stops: string[] = [];
+                uniqueColors.forEach((color, index) => {
+                  const start = (index / stopCount) * 100;
+                  const end = ((index + 1) / stopCount) * 100;
+                  stops.push(
+                    `<stop offset="${start}%" stop-color="${color}" />`,
+                    `<stop offset="${end}%" stop-color="${color}" />`
+                  );
+                });
+
+                gradientDef = `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">${stops.join(
+                  ''
+                )}</linearGradient></defs>`;
+                svgFill = 'url(#g)';
+              }
+
+              const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+${gradientDef}
+<circle cx="12" cy="12" r="7" fill="${svgFill}" stroke="#ffffff" stroke-width="3" />
+</svg>`;
+
+              const icon = {
+                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+                scaledSize: new google.maps.Size(24, 24),
+              };
               
               return (
                 <Marker
-                  key={event.id}
-                  position={event.coordinates}
-                  onClick={() => handleMarkerClick(event)}
-                  icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 10,
-                    fillColor: isPast ? '#6b7280' : '#ef4444', // Grey for past, red for upcoming
-                    fillOpacity: 1,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 3,
-                  }}
+                  key={key}
+                  position={{ lat, lng }}
+                  onClick={() => handleMarkerClick(representativeEvent)}
+                  icon={icon}
                 />
               );
             })}
@@ -366,7 +462,17 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
             {selectedEvent && (() => {
               const eventCoords = eventsWithCoords.find((e) => e.id === selectedEvent.id)?.coordinates;
               if (!eventCoords) return null;
-              
+
+              // Find all events at (approximately) the same coordinates
+              const epsilon = 1e-5;
+              const eventsAtLocation = eventsWithCoords.filter((e) => {
+                if (!e.coordinates) return false;
+                return (
+                  Math.abs(e.coordinates.lat - eventCoords.lat) < epsilon &&
+                  Math.abs(e.coordinates.lng - eventCoords.lng) < epsilon
+                );
+              });
+
               return (
                 <InfoWindow
                   position={eventCoords}
@@ -383,93 +489,120 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({
                     maxWidth: '300px',
                     fontFamily: 'system-ui, -apple-system, sans-serif'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
-                      <div style={{
-                        display: 'flex',
-                        height: '48px',
-                        width: '48px',
-                        flexShrink: 0,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '8px',
-                        backgroundColor: 'rgba(13, 124, 242, 0.2)',
-                        color: '#0d7cf2',
-                        border: '1px solid rgba(13, 124, 242, 0.3)'
+                    {eventsAtLocation.length > 1 && (
+                      <div style={{ 
+                        fontSize: '11px', 
+                        color: '#f97316', 
+                        marginBottom: '6px',
+                        fontWeight: 600 
                       }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>
-                          {getSportIcon(selectedEvent.sport)}
-                        </span>
+                        {eventsAtLocation.length} {t("events.atLocation") || "events at this location"}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <h3 style={{ 
-                          fontWeight: 'bold', 
-                          fontSize: '16px', 
+                    )}
+
+                    {eventsAtLocation.map((event) => {
+                      const now = new Date();
+                      const eventDateTime = new Date(`${event.date}T${event.time}`);
+                      const endDateTime = event.endTime
+                        ? new Date(`${event.date}T${event.endTime}`)
+                        : null;
+                      const isHappening = endDateTime
+                        ? eventDateTime <= now && endDateTime >= now
+                        : eventDateTime <= now &&
+                          eventDateTime >= new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+                      return (
+                        <div
+                          key={event.id}
+                          style={{ 
+                            marginBottom: '8px',
+                            paddingBottom: '8px',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                            lastChild: { borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }
+                          }}
+                        >
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'flex-start', 
+                          gap: '12px', 
                           marginBottom: '4px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {selectedEvent.title}
-                        </h3>
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '4px', 
-                          fontSize: '12px', 
-                          color: '#94a3b8',
-                          marginBottom: '4px'
-                        }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>location_on</span>
-                          <span style={{ 
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {selectedEvent.location}
-                          </span>
-                        </div>
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '4px', 
-                          fontSize: '12px', 
-                          color: '#94a3b8'
-                        }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>schedule</span>
-                          <span>{formatEventTime(selectedEvent.date, selectedEvent.time)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      paddingTop: '8px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.1)'
-                    }}>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        {selectedEvent.currentPlayers}/{selectedEvent.maxPlayers} players
-                      </div>
-                      <button
-                        onClick={() => handleEventClick(selectedEvent)}
-                        style={{
-                          padding: '6px 12px',
+                          backgroundColor: isHappening ? 'rgba(22, 163, 74, 0.28)' : 'transparent',
                           borderRadius: '8px',
-                          backgroundColor: '#0d7cf2',
-                          color: 'white',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(13, 124, 242, 0.8)'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0d7cf2'}
-                      >
-                        View Details
-                      </button>
-                    </div>
+                          padding: '6px 8px',
+                          border: isHappening ? '1px solid rgba(74, 222, 128, 0.9)' : '1px solid transparent',
+                          boxShadow: isHappening
+                            ? '0 0 12px rgba(34, 197, 94, 0.6)'
+                            : 'none'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            height: '40px',
+                            width: '40px',
+                            flexShrink: 0,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(13, 124, 242, 0.2)',
+                            color: '#0d7cf2',
+                            border: '1px solid rgba(13, 124, 242, 0.3)'
+                          }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                              {getSportIcon(event.sport)}
+                            </span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h3 style={{ 
+                              fontWeight: 'bold', 
+                              fontSize: '14px', 
+                              marginBottom: '2px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {event.title}
+                            </h3>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '4px', 
+                              fontSize: '12px', 
+                              color: '#94a3b8',
+                              marginBottom: '2px'
+                            }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>schedule</span>
+                              <span>{formatEventTime(event.date, event.time)}</span>
+                            </div>
+                            <div style={{ 
+                              fontSize: '11px', 
+                              color: '#9ca3af'
+                            }}>
+                              {event.currentPlayers}/{event.maxPlayers} {t("events.players")}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleEventClick(event)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '8px',
+                              backgroundColor: '#0d7cf2',
+                              color: 'white',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              border: 'none',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(13, 124, 242, 0.8)'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0d7cf2'}
+                          >
+                            {t("events.viewDetails")}
+                          </button>
+                        </div>
+                      </div>
+                      );
+                    })}
                   </div>
                 </InfoWindow>
               );

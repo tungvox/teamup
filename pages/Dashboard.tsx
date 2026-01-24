@@ -31,7 +31,7 @@ interface Sport {
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { events, joinEvent } = useEvents();
   const { unreadCount } = useMessages();
   const { t } = useLanguage();
@@ -54,6 +54,13 @@ export const Home: React.FC = () => {
   const [showMonthYearPicker, setShowMonthYearPicker] =
     useState<boolean>(false);
   const monthYearPickerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize selected location from user profile if available
+  useEffect(() => {
+    if (user?.location) {
+      setSelectedLocation(user.location);
+    }
+  }, [user?.location]);
 
   // Helper function to normalize Vietnamese text (remove diacritics and normalize)
   const normalizeVietnamese = (text: string): string => {
@@ -508,13 +515,11 @@ export const Home: React.FC = () => {
       return eventDateTime >= now;
     });
 
-    // Filter by location if selected
+    // Filter by location if selected (use smart city matching)
     if (selectedLocation) {
-      result = result.filter((e) => {
-        const locationLower = e.location.toLowerCase();
-        const selectedLocationLower = selectedLocation.toLowerCase();
-        return locationLower.includes(selectedLocationLower);
-      });
+      result = result.filter((e) =>
+        locationMatchesCity(e.location, selectedLocation)
+      );
     }
 
     return result.sort((a, b) => {
@@ -655,6 +660,11 @@ export const Home: React.FC = () => {
         // Filter by sport if selected
         if (selectedFilter && e.sport !== selectedFilter) return false;
 
+        // Filter by location if selected (use smart city matching)
+        if (selectedLocation && !locationMatchesCity(e.location, selectedLocation)) {
+          return false;
+        }
+
         // Check if event is upcoming or happening (not past)
         const eventDateTime = new Date(`${e.date}T${e.time}`);
         const eventEndTime = e.endTime
@@ -675,7 +685,7 @@ export const Home: React.FC = () => {
         const minutesB = timeB[0] * 60 + timeB[1];
         return minutesA - minutesB;
       });
-  }, [selectedDay, events, selectedFilter]);
+  }, [selectedDay, events, selectedFilter, selectedLocation]);
 
   return (
     <div className="flex flex-col pb-24 lg:pb-4">
@@ -995,7 +1005,17 @@ export const Home: React.FC = () => {
             </label>
             <select
               value={selectedLocation}
-              onChange={(e) => setSelectedLocation(e.target.value)}
+              onChange={async (e) => {
+                const value = e.target.value;
+                setSelectedLocation(value);
+                if (user && user.location !== value) {
+                  try {
+                    await updateUser({ location: value });
+                  } catch (err) {
+                    console.error("Failed to save location preference:", err);
+                  }
+                }
+              }}
               className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm"
             >
               {vietnamCities.map((city) => (
@@ -1017,7 +1037,17 @@ export const Home: React.FC = () => {
               </label>
               <select
                 value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
+                onChange={async (e) => {
+                  const value = e.target.value;
+                  setSelectedLocation(value);
+                  if (user && user.location !== value) {
+                    try {
+                      await updateUser({ location: value });
+                    } catch (err) {
+                      console.error("Failed to save location preference:", err);
+                    }
+                  }
+                }}
                 className="w-full bg-surface rounded-lg px-3 h-9 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm"
               >
                 {vietnamCities.map((city) => (
@@ -1164,6 +1194,7 @@ export const Home: React.FC = () => {
                 </div>
               ) : (
                 dayEventsForSelectedDay.map((event) => {
+                  const now = new Date();
                   const eventPlayers = eventPlayersMap[event.id] || [];
                   const [hours, minutes] = event.time.split(":");
                   const hour = parseInt(hours, 10);
@@ -1183,17 +1214,37 @@ export const Home: React.FC = () => {
                   }
 
                   const isCreated = event.organizerId === user?.id;
-                  const isJoined = user && event.players.includes(user.id) && !isCreated;
+                  const isJoined =
+                    user && event.players.includes(user.id) && !isCreated;
 
-                  const borderColor = "border-primary/50";
-                  const bgColor = "bg-primary/10";
-                  const accentColor = "bg-primary";
+                  // Determine if event is currently happening (same logic as happeningJoined)
+                  const eventStart = new Date(`${event.date}T${event.time}`);
+                  const eventEnd = event.endTime
+                    ? new Date(`${event.date}T${event.endTime}`)
+                    : null;
+                  const isHappening =
+                    eventEnd != null
+                      ? eventStart <= now && eventEnd >= now
+                      : eventStart <= now &&
+                        eventStart >= new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+                  const borderColor = isHappening
+                    ? "border-emerald-500"
+                    : "border-primary/50";
+                  const bgColor = isHappening
+                    ? "bg-emerald-900/40"
+                    : "bg-primary/10";
+                  const accentColor = isHappening ? "bg-emerald-500" : "bg-primary";
 
                   return (
                     <div
                       key={event.id}
                       onClick={() => navigate(`/event/${event.id}`)}
-                      className={`${bgColor} ${borderColor} border-l-4 rounded-lg p-3 cursor-pointer hover:border-primary/70 hover:bg-primary/15 transition-all lg:p-2.5`}
+                      className={`${bgColor} ${borderColor} border-l-4 rounded-lg p-3 cursor-pointer ${
+                        isHappening
+                          ? "hover:border-emerald-400 hover:bg-emerald-800/40"
+                          : "hover:border-primary/70 hover:bg-primary/15"
+                      } transition-all lg:p-2.5`}
                     >
                       <div className="flex gap-3 lg:gap-2">
                         <div className="flex flex-col items-center min-w-[50px] lg:min-w-[45px]">
@@ -1220,50 +1271,62 @@ export const Home: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between mb-2 lg:mb-1.5">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap lg:gap-1.5 lg:mb-0.5">
-                                <h3 className="text-base font-extrabold text-white lg:text-sm">
-                                  {event.title}
-                                </h3>
-                                {event.code && (
-                                  <div className="flex items-center gap-1">
-                                    <Badge type="neon" className="text-xs lg:text-[10px]">
-                                      {event.code}
-                                    </Badge>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigator.clipboard.writeText(event.code);
-                                      }}
-                                      className="p-1 rounded hover:bg-primary/20 transition-colors"
-                                      title="Copy code"
-                                    >
-                                      <span className="material-symbols-outlined text-xs text-primary lg:text-[10px]">
-                                        content_copy
-                                      </span>
-                                    </button>
-                                  </div>
-                                )}
-                                {isCreated && (
-                                  <Badge type="gold" className="text-xs lg:text-[10px]">
-                                    {t("events.created")}
-                                  </Badge>
-                                )}
-                                {isJoined && (
-                                  <Badge type="neon" className="text-xs lg:text-[10px]">
-                                    {t("events.joinedBadge")}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-slate-300 lg:text-[11px]">
-                                <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
-                                  location_on
+                          <div className="mb-2 lg:mb-1.5">
+                            {/* Title + main status */}
+                            <div className="flex items-center gap-2 mb-1 flex-wrap lg:gap-1.5 lg:mb-0.5">
+                              <h3 className="text-base font-extrabold text-white lg:text-sm">
+                                {event.title}
+                              </h3>
+                              {isHappening && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 lg:text-[9px]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_0_3px_rgba(248,113,113,0.35)] animate-pulse" />
+                                  {t("events.filter.happening")}
                                 </span>
-                                <span className="truncate">{event.location}</span>
-                              </div>
+                              )}
                             </div>
-                            <Badge type="primary" className="ml-2 shrink-0">{event.sport}</Badge>
+
+                            {/* Secondary info row: code, ownership, sport */}
+                            <div className="flex flex-wrap items-center gap-2 mb-1 lg:gap-1.5 lg:mb-0.5 text-[11px] lg:text-[10px]">
+                              {event.code && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(event.code);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-full bg-primary/15 border border-primary/40 px-2 py-0.5 font-semibold text-primary hover:bg-primary/25 hover:border-primary/60 transition-colors"
+                                  title={t("events.copyCode") || "Copy code"}
+                                >
+                                  <span>{event.code}</span>
+                                  <span className="material-symbols-outlined text-xs lg:text-[10px]">
+                                    content_copy
+                                  </span>
+                                </button>
+                              )}
+                              {isCreated && (
+                                <Badge type="gold" className="text-[11px] lg:text-[10px]">
+                                  {t("events.created")}
+                                </Badge>
+                              )}
+                              {isJoined && (
+                                <Badge type="neon" className="text-[11px] lg:text-[10px]">
+                                  {t("events.joinedBadge")}
+                                </Badge>
+                              )}
+                              <Badge
+                                type="primary"
+                                className="text-[11px] lg:text-[10px] ml-auto"
+                              >
+                                {event.sport}
+                              </Badge>
+                            </div>
+
+                            {/* Location */}
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300 lg:text-[11px]">
+                              <span className="material-symbols-outlined text-sm text-primary lg:text-xs">
+                                location_on
+                              </span>
+                              <span className="truncate">{event.location}</span>
+                            </div>
                           </div>
                           {event.description && (
                             <p className="text-xs text-slate-300 mb-2 line-clamp-2 lg:text-[11px] lg:mb-1.5">
@@ -1457,7 +1520,7 @@ export const Home: React.FC = () => {
                 return (
                   <div
                     key={index}
-                    className={`min-h-[60px] border border-white/5 rounded-lg p-1 ${
+                    className={`border border-white/5 rounded-lg p-1 ${
                       date
                         ? "bg-surface/50 hover:bg-surface transition-colors cursor-pointer"
                         : "bg-transparent"
@@ -1466,6 +1529,12 @@ export const Home: React.FC = () => {
                         ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
                         : ""
                     }`}
+                    style={{
+                      minHeight:
+                        date && dayEvents.length > 0
+                          ? 40 + Math.min(dayEvents.length, 3) * 14
+                          : 60,
+                    }}
                     onClick={() => date && setSelectedDay(date)}
                   >
                     {date && (
@@ -1482,24 +1551,20 @@ export const Home: React.FC = () => {
                           {date.getDate()}
                         </div>
                         <div className="space-y-0.5">
-                          {dayEvents.slice(0, 2).map((event) => {
+                          {dayEvents.slice(0, 3).map((event) => {
                             return (
                               <div
                                 key={event.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/event/${event.id}`);
-                                }}
-                                className="bg-primary/20 border-primary/30 border rounded px-1 py-0.5 text-[7px] font-medium truncate cursor-pointer hover:opacity-80 transition-opacity text-primary"
+                                className="bg-primary/20 border-primary/30 border rounded px-1 py-0.5 text-[9px] font-medium truncate text-primary"
                                 title={event.title}
                               >
                                 <span className="truncate">{event.title}</span>
                               </div>
                             );
                           })}
-                          {dayEvents.length > 2 && (
-                            <div className="text-[7px] text-slate-400 px-1">
-                              +{dayEvents.length - 2} {t('events.more')}
+                          {dayEvents.length > 3 && (
+                            <div className="bg-primary/10 border border-dashed border-primary/40 rounded px-1 py-0.5 text-[7px] font-medium text-primary/80 flex items-center justify-center">
+                              +{dayEvents.length - 3}
                             </div>
                           )}
                         </div>
@@ -1532,10 +1597,10 @@ export const MyEvents: React.FC = () => {
     Record<string, User[]>
   >({});
   const [activeTab, setActiveTab] = useState<
-    "upcoming-joined" | "past-joined" | "created" | "invited"
+    "upcoming-joined" | "happening" | "past-joined" | "created" | "invited"
   >("upcoming-joined");
   const [createdFilter, setCreatedFilter] = useState<
-    "all" | "upcoming" | "past"
+    "all" | "upcoming" | "happening" | "past"
   >("all");
   const [upcomingFilter, setUpcomingFilter] = useState<
     "all" | "created" | "joined"
@@ -1642,8 +1707,14 @@ export const MyEvents: React.FC = () => {
         // Filter by sport if selected
         if (selectedSportFilter && e.sport !== selectedSportFilter)
           return false;
-        const eventDate = new Date(`${e.date}T${e.time}`);
-        return eventDate < now;
+        const start = new Date(`${e.date}T${e.time}`);
+        const end = e.endTime ? new Date(`${e.date}T${e.endTime}`) : null;
+        // Past created events should be fully finished (not currently happening)
+        if (end) {
+          return end < now;
+        }
+        // For events without end time, treat as past only if clearly before now
+        return start < new Date(now.getTime() - 2 * 60 * 60 * 1000);
       })
       .sort((a, b) => {
         const dateA = new Date(`${a.date}T${a.time}`);
@@ -1659,8 +1730,10 @@ export const MyEvents: React.FC = () => {
         // Filter by sport if selected
         if (selectedSportFilter && e.sport !== selectedSportFilter)
           return false;
-        const eventDate = new Date(`${e.date}T${e.time}`);
-        return eventDate >= now;
+        const start = new Date(`${e.date}T${e.time}`);
+        const end = e.endTime ? new Date(`${e.date}T${e.endTime}`) : null;
+        // Upcoming = starts in the future (not yet started)
+        return start > now && (!end || end > now);
       })
       .sort((a, b) => {
         const dateA = new Date(`${a.date}T${a.time}`);
@@ -1676,6 +1749,32 @@ export const MyEvents: React.FC = () => {
     return uniqueEvents;
   }, [joinedEvents, createdEvents, now, selectedSportFilter]);
 
+  // Events currently happening (now is between start and end, or after start when no endTime)
+  const happeningJoined = useMemo(() => {
+    const allHappeningEvents = [...joinedEvents, ...createdEvents]
+      .filter((e) => {
+        if (selectedSportFilter && e.sport !== selectedSportFilter)
+          return false;
+        const start = new Date(`${e.date}T${e.time}`);
+        const end = e.endTime ? new Date(`${e.date}T${e.endTime}`) : null;
+        if (end) {
+          return start <= now && end >= now;
+        }
+        return start <= now && start >= new Date(now.getTime() - 2 * 60 * 60 * 1000); // heuristic window for events without endTime
+      })
+      .sort((a, b) => {
+        const dateA = new Date(`${a.date}T${a.time}`);
+        const dateB = new Date(`${b.date}T${b.time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    const uniqueEvents = Array.from(
+      new Map(allHappeningEvents.map((e) => [e.id, e])).values()
+    );
+
+    return uniqueEvents;
+  }, [joinedEvents, createdEvents, now, selectedSportFilter]);
+
   const pastJoined = useMemo(() => {
     // Include both past joined events and past created events (owner is also a participant)
     const allPastEvents = [...joinedEvents, ...createdEvents]
@@ -1683,8 +1782,14 @@ export const MyEvents: React.FC = () => {
         // Filter by sport if selected
         if (selectedSportFilter && e.sport !== selectedSportFilter)
           return false;
-        const eventDate = new Date(`${e.date}T${e.time}`);
-        return eventDate < now;
+        const start = new Date(`${e.date}T${e.time}`);
+        const end = e.endTime ? new Date(`${e.date}T${e.endTime}`) : null;
+        // Past = event fully finished, not happening now or in future
+        if (end) {
+          return end < now;
+        }
+        // For events without end time, treat as past only if clearly before now
+        return start < new Date(now.getTime() - 2 * 60 * 60 * 1000);
       })
       .sort((a, b) => {
         const dateA = new Date(`${a.date}T${a.time}`);
@@ -1725,6 +1830,7 @@ export const MyEvents: React.FC = () => {
         ...upcomingJoined,
         ...pastJoined,
         ...upcomingRequested,
+        ...happeningJoined,
       ].forEach((event) => {
         // Add organizer as a player if not already in the list
         if (event.organizerId && !event.players.includes(event.organizerId)) {
@@ -1758,6 +1864,7 @@ export const MyEvents: React.FC = () => {
         ...upcomingJoined,
         ...pastJoined,
         ...upcomingRequested,
+        ...happeningJoined,
       ].forEach((event) => {
         map[event.id] = event.players
           .map((playerId) => playersById.get(playerId))
@@ -1772,7 +1879,8 @@ export const MyEvents: React.FC = () => {
       pastCreated.length > 0 ||
       upcomingJoined.length > 0 ||
       pastJoined.length > 0 ||
-      upcomingRequested.length > 0
+      upcomingRequested.length > 0 ||
+      happeningJoined.length > 0
     ) {
       loadEventPlayers();
     }
@@ -1878,6 +1986,10 @@ export const MyEvents: React.FC = () => {
       .map((inv) => getEvent(inv.eventId))
       .filter((e): e is Event => e !== undefined)
       .filter((e) => {
+        // If the user has already joined this event, don't show it as an invitation
+        if (user && e.players.includes(user.id)) {
+          return false;
+        }
         // Filter by sport if selected
         if (selectedSportFilter && e.sport !== selectedSportFilter)
           return false;
@@ -1888,7 +2000,7 @@ export const MyEvents: React.FC = () => {
         const dateB = new Date(`${b.date}T${b.time}`);
         return dateA.getTime() - dateB.getTime();
       });
-  }, [invitations, getEvent, selectedSportFilter]);
+  }, [invitations, getEvent, selectedSportFilter, user]);
 
   // Unified Event Card Component
   const EventCard: React.FC<{
@@ -1902,7 +2014,8 @@ export const MyEvents: React.FC = () => {
     const isPast = variant === "past";
     // Check if event is created by user (either from variant or by checking organizerId)
     const isCreated = variant === "created" || event.organizerId === user?.id;
-    const isInvited = variant === "invited";
+    const isInvited =
+      variant === "invited" && !(user && event.players.includes(user.id));
 
     return (
       <div
@@ -2092,7 +2205,7 @@ export const MyEvents: React.FC = () => {
         return (
           <>
             {/* Filter Buttons */}
-            <div className="flex gap-1.5 mb-3">
+            <div className="flex gap-1.5 mb-3 items-center">
               <button
                 onClick={() => setUpcomingFilter("all")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
@@ -2164,6 +2277,43 @@ export const MyEvents: React.FC = () => {
           </>
         );
 
+      case "happening":
+        return (
+          <>
+            {happeningJoined.length > 0 ? (
+              <div className="space-y-2">
+                {happeningJoined.map((event) => {
+                  const isCreated = event.organizerId === user?.id;
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      variant={isCreated ? "created" : "default"}
+                      onClick={() =>
+                        navigate(
+                          isCreated
+                            ? `/event/manage/${event.id}`
+                            : `/event/${event.id}`
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                  event_available
+                </span>
+                <p className="text-lg font-medium mb-1">
+                  {t("events.noUpcoming")}
+                </p>
+                <p className="text-sm">{t("events.joinFromHome")}</p>
+              </div>
+            )}
+          </>
+        );
+
       case "past-joined":
         // Filter events based on selected filter
         const filteredPast = pastJoined.filter((event) => {
@@ -2176,7 +2326,7 @@ export const MyEvents: React.FC = () => {
         return (
           <>
             {/* Filter Buttons */}
-            <div className="flex gap-1.5 mb-3">
+            <div className="flex gap-1.5 mb-3 items-center">
               <button
                 onClick={() => setPastFilter("all")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
@@ -2253,8 +2403,9 @@ export const MyEvents: React.FC = () => {
         // Filter events based on selected filter
         const filteredCreated = (() => {
           if (createdFilter === "upcoming") return upcomingCreated;
+          if (createdFilter === "happening") return happeningJoined;
           if (createdFilter === "past") return pastCreated;
-          return [...upcomingCreated, ...pastCreated]; // "all"
+          return [...upcomingCreated, ...happeningJoined, ...pastCreated]; // "all"
         })();
 
         return (
@@ -2292,6 +2443,22 @@ export const MyEvents: React.FC = () => {
                 )}
               </button>
               <button
+                onClick={() => setCreatedFilter("happening")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  createdFilter === "happening"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                } flex items-center gap-1.5`}
+              >
+                <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]" />
+                {t("events.filter.happening")}
+                {happeningJoined.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {happeningJoined.length}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setCreatedFilter("past")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                   createdFilter === "past"
@@ -2312,8 +2479,13 @@ export const MyEvents: React.FC = () => {
             {filteredCreated.length > 0 ? (
               <div className="space-y-2">
                 {filteredCreated.map((event) => {
-                  const isPast =
-                    new Date(`${event.date}T${event.time}`) < new Date();
+                  const now = new Date();
+                  const start = new Date(`${event.date}T${event.time}`);
+                  const end = event.endTime
+                    ? new Date(`${event.date}T${event.endTime}`)
+                    : null;
+                  // An event is considered past only if it has fully finished
+                  const isPast = end ? end < now : start < new Date(now.getTime() - 2 * 60 * 60 * 1000);
                   return (
                     <EventCard
                       key={event.id}
@@ -2330,6 +2502,8 @@ export const MyEvents: React.FC = () => {
                 <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
                   {createdFilter === "upcoming"
                     ? "event_available"
+                    : createdFilter === "happening"
+                    ? "schedule"
                     : createdFilter === "past"
                     ? "history"
                     : "add_circle_outline"}
@@ -2337,12 +2511,16 @@ export const MyEvents: React.FC = () => {
                 <p className="text-lg font-medium mb-1">
                   {createdFilter === "upcoming"
                     ? t("events.noUpcoming")
+                    : createdFilter === "happening"
+                    ? t("events.noUpcoming")
                     : createdFilter === "past"
                     ? t("events.noPast")
                     : t("events.noCreatedYet")}
                 </p>
                 <p className="text-sm">
                   {createdFilter === "upcoming"
+                    ? t("events.noUpcomingCreatedYet")
+                    : createdFilter === "happening"
                     ? t("events.noUpcomingCreatedYet")
                     : createdFilter === "past"
                     ? t("events.pastCreatedAppear")
@@ -2487,6 +2665,31 @@ export const MyEvents: React.FC = () => {
                 }`}
               >
                 {upcomingJoined.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("happening")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "happening"
+                ? "bg-primary text-white shadow-lg shadow-primary/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]" />
+            <span className="material-symbols-outlined text-base">
+              schedule
+            </span>
+            <span>{t("events.filter.happening")}</span>
+            {happeningJoined.length > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "happening"
+                    ? "bg-white/20 text-white"
+                    : "bg-primary/20 text-primary"
+                }`}
+              >
+                {happeningJoined.length}
               </span>
             )}
           </button>
@@ -3211,7 +3414,13 @@ const EventInvitationsSection: React.FC = () => {
 
       try {
         const invs = await getUserInvitations();
-        setInvitations(invs);
+        // Filter out invitations for events the user has already joined
+        const filtered = invs.filter((inv) => {
+          const event = getEvent(inv.eventId);
+          if (!event || !user) return true;
+          return !event.players.includes(user.id);
+        });
+        setInvitations(filtered);
       } catch (error) {
         console.error("Error loading invitations:", error);
         setInvitations([]);
@@ -3327,7 +3536,13 @@ const EventInvitationsSection: React.FC = () => {
       await denyInvitation(eventId);
       // Reload invitations from database to ensure consistency
       const updatedInvitations = await getUserInvitations();
-      setInvitations(updatedInvitations || []);
+      const filtered =
+        updatedInvitations?.filter((inv) => {
+          const event = getEvent(inv.eventId);
+          if (!event || !user) return true;
+          return !event.players.includes(user.id);
+        }) || [];
+      setInvitations(filtered);
       // No alert needed - invitation is just removed
     } catch (error: any) {
       console.error("Error denying invitation:", error);

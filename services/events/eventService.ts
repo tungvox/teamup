@@ -287,7 +287,7 @@ export const eventService = {
     }
     
     if (!requestData || requestData.length === 0) {
-      throw new Error('No pending request or invitation found to approve');
+      logger.warn('No pending request or invitation found to approve; proceeding to add user directly if allowed');
     }
     
     // Add user to event players - use the current players from database

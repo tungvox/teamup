@@ -195,7 +195,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({
                 />
               </Autocomplete>
               
-              <div className="rounded-lg overflow-hidden border border-white/10 lg:rounded h-[140px] lg:h-[100px]">
+              <div className="rounded-lg overflow-hidden border border-white/10 lg:rounded h-[200px] lg:h-[160px]">
                 <GoogleMap
                   mapContainerStyle={{ width: '100%', height: '100%' }}
                   center={mapCenter}

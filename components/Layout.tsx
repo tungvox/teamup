@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
 export const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getUserInvitations } = useEvents();
+  const { getUserInvitations, getEvent } = useEvents();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [invitationCount, setInvitationCount] = useState(0);
@@ -26,7 +26,13 @@ export const BottomNav: React.FC = () => {
     const loadInvitations = async () => {
       try {
         const invitations = await getUserInvitations();
-        const count = invitations?.length || 0;
+        // Only count invitations where the user has NOT already joined the event
+        const count =
+          invitations?.filter((inv) => {
+            if (!user) return false;
+            const event = getEvent(inv.eventId);
+            return !event || !event.players.includes(user.id);
+          }).length || 0;
         setInvitationCount(count);
       } catch (error: any) {
         logger.error('Error loading invitations:', error);
@@ -81,7 +87,12 @@ export const BottomNav: React.FC = () => {
                 // Reload invitations to get updated count
                 try {
                   const invitations = await getUserInvitations();
-                  const count = invitations?.length || 0;
+                  const count =
+                    invitations?.filter((inv) => {
+                      if (!user) return false;
+                      const event = getEvent(inv.eventId);
+                      return !event || !event.players.includes(user.id);
+                    }).length || 0;
                   setInvitationCount(count);
                 } catch (error: any) {
                   logger.error('Error reloading invitations in real-time callback:', error);

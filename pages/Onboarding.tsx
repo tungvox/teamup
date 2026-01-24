@@ -79,19 +79,16 @@ export const OnboardingLanding: React.FC = () => {
         </div>
         </div>
 
-        {/* CTA Section */}
+        {/* CTA Section - unified entry for login & signup */}
         <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
           <div className="flex flex-col gap-2 lg:gap-2.5">
             <button 
-              onClick={() => navigate('/create-profile', { state: { skipIntro: true } })}
+              onClick={() => navigate('/login')}
               className="w-full py-2.5 bg-gradient-to-r from-primary via-blue-600 to-primary hover:from-primary-hover hover:via-blue-700 hover:to-primary-hover active:scale-[0.98] transition-all rounded-lg shadow-lg shadow-primary/30 text-white font-bold text-sm flex items-center justify-center gap-1.5 group lg:py-3 lg:text-base lg:rounded-xl"
             >
               <span>{t('onboarding.getStartedFree')}</span>
               <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform text-base lg:text-lg">arrow_forward</span>
             </button>
-            <div className="text-center text-[10px] text-slate-400 lg:text-xs">
-              {t('onboarding.alreadyHaveAccount')} <span className="text-white font-semibold cursor-pointer hover:text-[#39FF14] transition-colors underline underline-offset-1" onClick={() => navigate('/login')}>{t('onboarding.logIn')}</span>
-            </div>
           </div>
         </div>
       </main>

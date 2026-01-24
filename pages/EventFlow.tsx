@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Header, Avatar } from "../components/Layout";
 import { useEvents } from "../context/EventContext";
@@ -50,6 +50,13 @@ export const CreateEvent: React.FC = () => {
     const [year, month, day] = dateString.split("-");
     return `${dayName}, ${day}/${month}/${year}`;
   };
+  // Short date format for input display: dd/mm/yyyy
+  const getShortDate = (dateString: string) => {
+    if (!dateString) return "";
+    const [year, month, day] = dateString.split("-");
+    return `${day}/${month}/${year}`;
+  };
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const [time, setTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [showEndTime, setShowEndTime] = useState(false);
@@ -255,16 +262,40 @@ export const CreateEvent: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
-                  className="bg-transparent text-primary font-medium outline-none text-sm lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                  style={{
-                    colorScheme: "dark",
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => {
+                    if (dateInputRef.current) {
+                      // Prefer showPicker when supported, fallback to focus
+                      // @ts-ignore - showPicker is not in older TS lib DOM types
+                      if (dateInputRef.current.showPicker) {
+                        // @ts-ignore
+                        dateInputRef.current.showPicker();
+                      } else {
+                        dateInputRef.current.focus();
+                      }
+                    }
                   }}
-                />
+                >
+                  {/* Visible formatted date text / placeholder */}
+                  <span className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pr-2 text-sm lg:text-xs font-medium ${
+                    date ? "text-primary" : "text-slate-500"
+                  }`}>
+                    {date ? getShortDate(date) : "dd/mm/yyyy"}
+                  </span>
+                  {/* Native date input (text hidden, used only for picker) */}
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="bg-transparent text-transparent font-medium outline-none text-sm lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:text-transparent [&::-webkit-datetime-edit-year-field]:text-transparent [&::-webkit-datetime-edit-month-field]:text-transparent [&::-webkit-datetime-edit-day-field]:text-transparent"
+                    style={{
+                      colorScheme: "dark",
+                    }}
+                  />
+                </div>
               </div>
               <div className="flex items-center justify-between p-3 lg:p-2">
                 <div className="flex items-center gap-2 lg:gap-1.5">
@@ -366,7 +397,7 @@ export const CreateEvent: React.FC = () => {
                         setEndTime("");
                       }
                     }}
-                    className="text-primary text-xs font-medium hover:text-primary-hover ml-2 lg:text-[10px] lg:ml-1"
+                    className="inline-flex items-center px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 hover:text-primary-hover ml-2 lg:text-[10px] lg:ml-1"
                   >
                     {showEndTime ? t('events.remove') : t('events.addEndTime')}
                   </button>
@@ -380,7 +411,7 @@ export const CreateEvent: React.FC = () => {
                         timer
                       </span>
                     </div>
-                    <span className="font-medium text-sm lg:text-xs">Duration</span>
+                    <span className="font-medium text-sm lg:text-xs">{t('events.duration')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
@@ -687,15 +718,20 @@ export const CreateEvent: React.FC = () => {
       </main>
 
       <div className="p-3 bg-background border-t border-white/10 w-full lg:p-4">
-        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
-        <button
-          onClick={handleCreate}
-          disabled={isLoading}
-          className="w-full h-12 bg-primary disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:h-10 lg:text-sm"
-        >
-          <span className="material-symbols-outlined lg:text-[18px]">add_circle</span>
-          {isLoading ? t('events.creating') : t('events.create')}
-        </button>
+        <div className="lg:max-w-2xl lg:mx-auto lg:w-full space-y-2">
+          {error && (
+            <div className="p-2 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm lg:p-1.5 lg:text-xs">
+              {error}
+            </div>
+          )}
+          <button
+            onClick={handleCreate}
+            disabled={isLoading}
+            className="w-full h-12 bg-primary disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:h-10 lg:text-sm"
+          >
+            <span className="material-symbols-outlined lg:text-[18px]">add_circle</span>
+            {isLoading ? t('events.creating') : t('events.create')}
+          </button>
         </div>
       </div>
     </div>
@@ -2308,26 +2344,27 @@ export const EventDetails: React.FC = () => {
             {event.title}
           </h1>
           {event.code && (
-            <div className="bg-primary/10 border-2 border-primary/30 rounded-lg px-2.5 py-1.5 ml-3">
-              <p className="text-[10px] text-slate-400 mb-0.5">{t('events.eventCode')}</p>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(event.code);
+                // You could add a toast notification here
+              }}
+              className="bg-primary/10 border-2 border-primary/30 rounded-lg px-2.5 py-1.5 ml-3 text-left hover:bg-primary/15 hover:border-primary/40 transition-colors cursor-pointer"
+              title={t('events.eventCreated.copyCode')}
+            >
+              <p className="text-[10px] text-slate-400 mb-0.5">
+                {t('events.eventCode')}
+              </p>
               <div className="flex items-center gap-1.5">
                 <code className="text-sm font-bold text-primary tracking-wider">
                   {event.code}
                 </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(event.code);
-                    // You could add a toast notification here
-                  }}
-                  className="p-0.5 rounded bg-primary/20 hover:bg-primary/30 transition-colors"
-                  title="Copy code"
-                >
-                  <span className="material-symbols-outlined text-xs">
-                    content_copy
-                  </span>
-                </button>
+                <span className="material-symbols-outlined text-xs text-primary/90">
+                  content_copy
+                </span>
               </div>
-            </div>
+            </button>
           )}
         </div>
 
@@ -2500,18 +2537,10 @@ export const EventDetails: React.FC = () => {
           </div>
 
           <div className="flex gap-2 mt-4">
-            {!isEventPast() && (
+            {!isEventPast() && isOrganizer && (
               <button
                 onClick={() => {
-                  if (isOrganizer) {
-                    setShowInviteModal(true);
-                  } else if (navigator.share) {
-                    navigator.share({
-                      title: event.title,
-                      text: t('events.shareEventText').replace('{sport}', event.sport).replace('{date}', formatDate(event.date)) + '!',
-                      url: window.location.href,
-                    });
-                  }
+                  setShowInviteModal(true);
                 }}
                 className="flex-1 bg-surface border border-white/10 h-10 rounded-lg font-bold text-sm text-primary flex items-center justify-center gap-1.5 hover:bg-white/5 transition-colors"
               >
@@ -2519,17 +2548,6 @@ export const EventDetails: React.FC = () => {
                   ios_share
                 </span>{" "}
                 {t('events.inviteFriends')}
-              </button>
-            )}
-            {!isOrganizer && (
-              <button
-                onClick={handleChat}
-                className="flex-1 bg-primary/10 border border-primary/20 h-10 rounded-lg font-bold text-sm text-primary flex items-center justify-center gap-1.5 hover:bg-primary/20 transition-colors"
-              >
-                <span className="material-symbols-outlined text-base">
-                  chat
-                </span>{" "}
-                Team Chat
               </button>
             )}
           </div>
