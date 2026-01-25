@@ -1,12 +1,14 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Header, Avatar } from "../components/Layout";
+import { RatingModal } from "../components/RatingModal";
 import { useEvents } from "../context/EventContext";
 import { useAuth } from "../context/AuthContext";
 import { useMessages } from "../context/MessageContext";
 import { useLanguage } from "../context/LanguageContext";
 import { sportsService } from "../services/supabaseService";
 import { userService } from "../services/userService";
+import { ratingService } from "../services/ratings/ratingService";
 import { Event, User } from "../types";
 
 // Lazy load LocationPicker to avoid blocking form rendering
@@ -1786,6 +1788,8 @@ export const EventDetails: React.FC = () => {
   const [friends, setFriends] = useState<User[]>([]);
   const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
   const [invitedFriendIds, setInvitedFriendIds] = useState<Set<string>>(new Set());
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
 
   // Check if event is past - defined early so it's always in scope
   const isEventPast = () => {
@@ -1989,6 +1993,28 @@ export const EventDetails: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event?.players ? event.players.sort().join(",") : ""]); // Use sorted join to create a stable dependency
+
+  // Check if user has already rated players for this event
+  useEffect(() => {
+    const checkRatings = async () => {
+      if (!event || !user) return;
+      
+      const eventPast = isEventPast();
+      if (!eventPast) {
+        setHasRated(false);
+        return;
+      }
+      
+      try {
+        const existingRatings = await ratingService.getUserRatingsForEvent(event.id, user.id);
+        setHasRated(existingRatings.length > 0);
+      } catch (error) {
+        console.error('Error checking ratings:', error);
+      }
+    };
+
+    checkRatings();
+  }, [event?.id, user?.id, event?.date, event?.time, event?.endTime]);
 
   const loadPlayers = async (playerIds: string[]) => {
     if (playerIds.length === 0) {
@@ -2598,43 +2624,54 @@ export const EventDetails: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={isJoined ? handleLeave : handleJoin}
-                disabled={
-                  isJoining ||
-                  (isFull && !isApproved) ||
-                  hasPendingRequest ||
-                  !user ||
-                  isEventPast()
-                }
-                className={`flex-1 h-11 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] ${
-                  isJoined
-                    ? "bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30"
+              <div className="flex gap-2 w-full">
+                {isEventPast() && isJoined && !hasRated && (
+                  <button
+                    onClick={() => setShowRatingModal(true)}
+                    className="flex-1 h-11 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/20 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-base">star</span>
+                    {t('ratings.ratePlayers')}
+                  </button>
+                )}
+                <button
+                  onClick={isJoined && !isEventPast() ? handleLeave : handleJoin}
+                  disabled={
+                    isJoining ||
+                    isFull ||
+                    hasPendingRequest ||
+                    !user ||
+                    isEventPast()
+                  }
+                  className={`flex-1 h-11 rounded-lg font-bold text-sm shadow-lg transition-all active:scale-[0.98] ${
+                    isEventPast()
+                      ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
+                      : isJoined
+                      ? "bg-red-500/20 text-red-400 border border-red-500/20 hover:bg-red-500/30"
+                      : hasPendingRequest
+                      ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 cursor-not-allowed"
+                      : isApproved
+                      ? "bg-green-500/20 text-green-400 border border-green-500/20 cursor-not-allowed"
+                      : isFull
+                      ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
+                      : "bg-primary hover:bg-primary-hover text-white shadow-primary/20"
+                  }`}
+                >
+                  {isJoining
+                    ? t('common.loading')
                     : isEventPast()
-                    ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
+                    ? t('events.eventEnded')
+                    : isJoined
+                    ? t('events.leaveEvent')
                     : hasPendingRequest
-                    ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20 cursor-not-allowed"
+                    ? t('events.requested')
                     : isApproved
-                    ? "bg-green-500/20 text-green-400 border border-green-500/20 cursor-not-allowed"
+                    ? t('events.approved')
                     : isFull
-                    ? "bg-slate-500/20 text-slate-400 border border-slate-500/20 cursor-not-allowed"
-                    : "bg-primary hover:bg-primary-hover text-white shadow-primary/20"
-                }`}
-              >
-                {isJoining
-                  ? t('common.loading')
-                  : isJoined
-                  ? t('events.leaveEvent')
-                  : isEventPast()
-                  ? t('events.eventEnded')
-                  : hasPendingRequest
-                  ? t('events.requested')
-                  : isApproved
-                  ? t('events.approved')
-                  : isFull
-                  ? t('events.eventFull')
-                  : t('events.requestToJoin')}
-              </button>
+                    ? t('events.eventFull')
+                    : t('events.requestToJoin')}
+                </button>
+              </div>
             )
           ) : (
             <button
@@ -2720,6 +2757,20 @@ export const EventDetails: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && event && user && (
+        <RatingModal
+          eventId={event.id}
+          players={players}
+          currentUserId={user.id}
+          onClose={() => setShowRatingModal(false)}
+          onSubmitted={() => {
+            setShowRatingModal(false);
+            setHasRated(true);
+          }}
+        />
       )}
     </div>
   );

@@ -23,6 +23,7 @@ import {
 } from "../services/supabaseService";
 import { isValidUserId } from "../utils/userId";
 import { supabase } from "../lib/supabase";
+import { ratingService } from "../services/ratings/ratingService";
 
 interface Sport {
   id: string;
@@ -1626,6 +1627,9 @@ export const MyEvents: React.FC = () => {
     getUserPendingRequest,
     getUserInvitations,
     getEvent,
+    getEventRequests,
+    approveRequest,
+    denyRequest,
   } = useEvents();
   useMessages();
   const { t } = useLanguage();
@@ -1633,7 +1637,7 @@ export const MyEvents: React.FC = () => {
     Record<string, User[]>
   >({});
   const [activeTab, setActiveTab] = useState<
-    "upcoming-joined" | "happening" | "past-joined" | "created" | "invited"
+    "upcoming-joined" | "happening" | "past-joined" | "created" | "invited" | "requested"
   >("upcoming-joined");
   const [createdFilter, setCreatedFilter] = useState<
     "all" | "upcoming" | "happening" | "past"
@@ -1644,8 +1648,11 @@ export const MyEvents: React.FC = () => {
   const [pastFilter, setPastFilter] = useState<"all" | "created" | "joined">(
     "all"
   );
+  const [requestedFilter, setRequestedFilter] = useState<"my" | "other">("my");
   const [invitations, setInvitations] = useState<EventRequest[]>([]);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
+  const [otherRequests, setOtherRequests] = useState<Array<{ event: Event; request: EventRequest; requester: User }>>([]);
+  const [loadingOtherRequests, setLoadingOtherRequests] = useState(true);
   const [selectedSportFilter, setSelectedSportFilter] = useState<string>("");
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
@@ -1860,14 +1867,17 @@ export const MyEvents: React.FC = () => {
       const map: Record<string, User[]> = {};
       const allPlayerIds = new Set<string>();
 
-      [
+      const allEvents = [
         ...upcomingCreated,
         ...pastCreated,
         ...upcomingJoined,
         ...pastJoined,
         ...upcomingRequested,
         ...happeningJoined,
-      ].forEach((event) => {
+        ...otherRequests.map(r => r.event),
+      ];
+
+      allEvents.forEach((event) => {
         // Add organizer as a player if not already in the list
         if (event.organizerId && !event.players.includes(event.organizerId)) {
           allPlayerIds.add(event.organizerId);
@@ -1894,14 +1904,7 @@ export const MyEvents: React.FC = () => {
       );
       const playersById = new Map(players.map((p) => [p.id, p]));
 
-      [
-        ...upcomingCreated,
-        ...pastCreated,
-        ...upcomingJoined,
-        ...pastJoined,
-        ...upcomingRequested,
-        ...happeningJoined,
-      ].forEach((event) => {
+      allEvents.forEach((event) => {
         map[event.id] = event.players
           .map((playerId) => playersById.get(playerId))
           .filter((p): p is User => p !== undefined);
@@ -1916,7 +1919,8 @@ export const MyEvents: React.FC = () => {
       upcomingJoined.length > 0 ||
       pastJoined.length > 0 ||
       upcomingRequested.length > 0 ||
-      happeningJoined.length > 0
+      happeningJoined.length > 0 ||
+      otherRequests.length > 0
     ) {
       loadEventPlayers();
     }
@@ -1926,6 +1930,8 @@ export const MyEvents: React.FC = () => {
     upcomingJoined,
     pastJoined,
     upcomingRequested,
+    happeningJoined,
+    otherRequests,
   ]);
 
   const formatEventTime = (date: string, time: string, endTime?: string) => {
@@ -2016,6 +2022,56 @@ export const MyEvents: React.FC = () => {
     loadInvitations();
   }, [user, getUserInvitations]);
 
+  // Load requests from other people (requests to join events the user created)
+  useEffect(() => {
+    const loadOtherRequests = async () => {
+      if (!user) {
+        setOtherRequests([]);
+        setLoadingOtherRequests(false);
+        return;
+      }
+
+      try {
+        const userCreatedEvents = events.filter((e) => e.organizerId === user.id);
+        const allRequests: Array<{ event: Event; request: EventRequest; requester: User }> = [];
+
+        for (const event of userCreatedEvents) {
+          try {
+            const requests = await getEventRequests(event.id);
+            for (const request of requests) {
+              if (request.status === 'pending') {
+                try {
+                  const requester = await userService.getUserProfile(request.userId);
+                  if (requester) {
+                    allRequests.push({ event, request, requester });
+                  }
+                } catch (error) {
+                  console.error(`Error loading requester ${request.userId}:`, error);
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading requests for event ${event.id}:`, error);
+          }
+        }
+
+        // Sort by request creation date (newest first)
+        allRequests.sort((a, b) => 
+          new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime()
+        );
+
+        setOtherRequests(allRequests);
+      } catch (error) {
+        console.error("Error loading other requests:", error);
+        setOtherRequests([]);
+      } finally {
+        setLoadingOtherRequests(false);
+      }
+    };
+
+    loadOtherRequests();
+  }, [user, events, getEventRequests]);
+
   // Get invited events from invitations
   const invitedEvents = useMemo(() => {
     return invitations
@@ -2038,10 +2094,25 @@ export const MyEvents: React.FC = () => {
       });
   }, [invitations, getEvent, selectedSportFilter, user]);
 
+  // Group other requests by event ID
+  const groupedOtherRequests = useMemo(() => {
+    const grouped = new Map<string, Array<{ event: Event; request: EventRequest; requester: User }>>();
+    
+    otherRequests.forEach((item) => {
+      const eventId = item.event.id;
+      if (!grouped.has(eventId)) {
+        grouped.set(eventId, []);
+      }
+      grouped.get(eventId)!.push(item);
+    });
+    
+    return Array.from(grouped.values());
+  }, [otherRequests]);
+
   // Unified Event Card Component
   const EventCard: React.FC<{
     event: Event;
-    variant?: "default" | "past" | "created" | "invited";
+    variant?: "default" | "past" | "created" | "invited" | "requested";
     onClick?: () => void;
     showActions?: boolean;
   }> = ({ event, variant = "default", onClick, showActions = true }) => {
@@ -2052,6 +2123,7 @@ export const MyEvents: React.FC = () => {
     const isCreated = variant === "created" || event.organizerId === user?.id;
     const isInvited =
       variant === "invited" && !(user && event.players.includes(user.id));
+    const isRequested = variant === "requested" || requestedEventIds.has(event.id);
 
     return (
       <div
@@ -2120,7 +2192,10 @@ export const MyEvents: React.FC = () => {
                   {isInvited && (
                     <Badge type="neon">{t("events.invited")}</Badge>
                   )}
-                  {!isCreated && !isInvited && (
+                  {isRequested && !isInvited && (
+                    <Badge type="slate">{t("events.requested") || "Đã yêu cầu"}</Badge>
+                  )}
+                  {!isCreated && !isInvited && !isRequested && (
                     <Badge type="neon">{t("events.joinedBadge")}</Badge>
                   )}
                   {spotsLeft > 0 && !isPast && (
@@ -2608,6 +2683,236 @@ export const MyEvents: React.FC = () => {
           </div>
         );
 
+      case "requested":
+        // Filter buttons
+        const myRequestsCount = upcomingRequested.length;
+        const otherRequestsCount = otherRequests.length;
+
+        return (
+          <>
+            {/* Filter Buttons */}
+            <div className="flex gap-1.5 mb-3 items-center">
+              <button
+                onClick={() => setRequestedFilter("my")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  requestedFilter === "my"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.myRequests") || "Yêu cầu của tôi"}
+                {myRequestsCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {myRequestsCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setRequestedFilter("other")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  requestedFilter === "other"
+                    ? "bg-primary text-white"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                {t("events.filter.otherRequests") || "Yêu cầu từ người khác"}
+                {otherRequestsCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+                    {otherRequestsCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* My Requests */}
+            {requestedFilter === "my" && (
+              <>
+                {upcomingRequested.length > 0 ? (
+                  <div className="space-y-2">
+                    {upcomingRequested.map((event) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        variant="requested"
+                        onClick={() => navigate(`/event/${event.id}`)}
+                        showActions={true}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 text-slate-400">
+                    <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                      pending
+                    </span>
+                    <p className="text-lg font-medium mb-1">
+                      {t("events.noMyJoinRequests") || "Không có yêu cầu của bạn"}
+                    </p>
+                    <p className="text-sm">
+                      {t("events.myJoinRequestsHint") || "Các sự kiện bạn đã yêu cầu tham gia sẽ xuất hiện ở đây"}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Other Requests */}
+            {requestedFilter === "other" && (
+              <>
+                {loadingOtherRequests ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <span className="material-symbols-outlined text-6xl mb-4 block opacity-50 animate-pulse">
+                      hourglass_empty
+                    </span>
+                    <p className="text-lg font-medium">
+                      {t("common.loading")}
+                    </p>
+                  </div>
+                ) : groupedOtherRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {groupedOtherRequests.map((requestsForEvent) => {
+                      const { event } = requestsForEvent[0];
+                      const requestCount = requestsForEvent.length;
+                      
+                      return (
+                        <div
+                          key={event.id}
+                          className="bg-surface rounded-xl p-3 border border-white/5 hover:border-primary/30 transition-all lg:rounded-lg lg:p-2"
+                        >
+                          <div className="flex gap-3 lg:gap-2">
+                            {/* Event Image/Icon */}
+                            <div className="shrink-0 relative">
+                              <div className="invisible">
+                                <Badge>{event.sport}</Badge>
+                              </div>
+                              <div
+                                className="absolute top-0 left-0 w-full rounded-lg bg-cover bg-center flex items-center justify-center overflow-hidden"
+                                style={{
+                                  aspectRatio: "1 / 1",
+                                  backgroundImage: event.image
+                                    ? `url(${event.image})`
+                                    : `url(https://i.pravatar.cc/150?u=${event.organizerId})`,
+                                }}
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                              </div>
+                              <div className="absolute top-0 left-0 z-10">
+                                <Badge>{event.sport}</Badge>
+                              </div>
+                            </div>
+
+                            {/* Event Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start mb-1.5">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-bold text-sm mb-0.5 line-clamp-1 lg:text-xs lg:mb-0">
+                                    {event.title}
+                                  </h3>
+                                  <div className="flex items-center gap-1.5 flex-wrap lg:gap-1">
+                                    <Badge type="gold">{t("events.created")}</Badge>
+                                    <span className="text-[10px] text-slate-400 lg:text-[9px]">
+                                      {formatEventTime(event.date, event.time)}
+                                    </span>
+                                    {requestCount > 1 && (
+                                      <Badge type="slate" className="text-[9px]">
+                                        {requestCount} {t("events.requests") || "yêu cầu"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Requesters List */}
+                              <div className="space-y-1.5">
+                                {requestsForEvent.map(({ request, requester }) => (
+                                  <div key={request.id} className="p-1.5 bg-white/5 rounded-lg border border-white/10">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <Avatar
+                                        src={requester.avatar || `https://i.pravatar.cc/150?u=${requester.id}`}
+                                        size="w-7 h-7"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-[11px]">
+                                          {requester.firstName} {requester.lastName}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400">
+                                          {requester.userId}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            await approveRequest(event.id, request.userId);
+                                            // Reload requests
+                                            setOtherRequests(prev => prev.filter(r => r.request.id !== request.id));
+                                          } catch (error: any) {
+                                            console.error("Error approving request:", error);
+                                            alert(error.message || t("events.failedToApprove"));
+                                          }
+                                        }}
+                                        className="flex-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 h-6 rounded text-[9px] font-bold transition-colors border border-green-500/30 px-1.5"
+                                      >
+                                        {t("events.approve")}
+                                      </button>
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          try {
+                                            await denyRequest(event.id, request.userId);
+                                            // Reload requests
+                                            setOtherRequests(prev => prev.filter(r => r.request.id !== request.id));
+                                          } catch (error: any) {
+                                            console.error("Error denying request:", error);
+                                            alert(error.message || t("events.failedToDeny"));
+                                          }
+                                        }}
+                                        className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 h-6 rounded text-[9px] font-bold transition-colors border border-red-500/30 px-1.5"
+                                      >
+                                        {t("events.deny")}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* View Details Button */}
+                              <div className="mt-1.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/event/manage/${event.id}`);
+                                  }}
+                                  className="w-full bg-primary/10 hover:bg-primary/20 text-primary h-6 rounded text-[9px] font-bold transition-colors border border-primary/30"
+                                >
+                                  {t("events.viewDetails")}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 text-slate-400">
+                    <span className="material-symbols-outlined text-6xl mb-4 block opacity-50">
+                      pending
+                    </span>
+                    <p className="text-lg font-medium mb-1">
+                      {t("events.noOtherJoinRequests") || "Không có yêu cầu từ người khác"}
+                    </p>
+                    <p className="text-sm">
+                      {t("events.otherJoinRequestsHint") || "Yêu cầu tham gia sự kiện của bạn sẽ xuất hiện ở đây"}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        );
+
       default:
         return null;
     }
@@ -2795,6 +3100,28 @@ export const MyEvents: React.FC = () => {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("requested")}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeTab === "requested"
+                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">pending</span>
+            <span>{t("events.joinRequests")}</span>
+            {(upcomingRequested.length > 0 || otherRequests.length > 0) && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "requested"
+                    ? "bg-white/20 text-white"
+                    : "bg-orange-500/20 text-orange-500"
+                }`}
+              >
+                {upcomingRequested.length + otherRequests.length}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -2847,12 +3174,153 @@ export const Profile: React.FC = () => {
   const [lastNameInput, setLastNameInput] = useState(user?.lastName || "");
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [actualMatches, setActualMatches] = useState<number>(0);
+  const [averageSkill, setAverageSkill] = useState<string | null>(null);
+  const [averageSatisfaction, setAverageSatisfaction] = useState<string | null>(null);
+  const [ratingCount, setRatingCount] = useState<number>(0);
 
   useEffect(() => {
     if (!user) return;
     setFirstNameInput(user.firstName || "");
     setLastNameInput(user.lastName || "");
   }, [user?.firstName, user?.lastName]);
+
+  // Calculate actual matches count from events
+  useEffect(() => {
+    const calculateMatches = async () => {
+      if (!user?.id) {
+        setActualMatches(0);
+        return;
+      }
+
+      try {
+        // Fetch all events and filter in JavaScript to find where user is in players array
+        // Events store clerk_id in the players array, so we use user.id (clerk_id)
+        const { data: allEvents, error: eventsError } = await supabase
+          .from('events')
+          .select('id, players');
+
+        if (eventsError) {
+          console.error('Error fetching events for matches calculation:', eventsError);
+          setActualMatches(user.stats?.matches || 0);
+          return;
+        }
+
+        // Filter events where user's clerk_id is in the players array
+        const eventsWithUser = (allEvents || []).filter(event => {
+          if (!event.players || !Array.isArray(event.players)) return false;
+          return event.players.includes(user.id);
+        });
+
+        // Also count events where user has approved event_requests
+        // event_requests.user_id also stores clerk_id
+        const { data: approvedRequests, error: requestError } = await supabase
+          .from('event_requests')
+          .select('event_id')
+          .eq('user_id', user.id)
+          .eq('status', 'approved');
+
+        if (requestError) {
+          console.error('Error fetching approved requests:', requestError);
+        }
+
+        // Combine both counts, avoiding duplicates
+        const eventIdsFromPlayers = new Set(eventsWithUser.map(e => e.id));
+        const eventIdsFromRequests = new Set((approvedRequests || []).map(r => r.event_id));
+        const allEventIds = new Set([...eventIdsFromPlayers, ...eventIdsFromRequests]);
+
+        setActualMatches(allEventIds.size);
+      } catch (error) {
+        console.error('Error calculating matches:', error);
+        setActualMatches(user.stats?.matches || 0);
+      }
+    };
+
+    calculateMatches();
+  }, [user?.id, user?.stats?.matches]);
+
+  // Calculate rating analysis
+  useEffect(() => {
+    const calculateRatings = async () => {
+      if (!user?.id) {
+        setAverageSkill(null);
+        setAverageSatisfaction(null);
+        setRatingCount(0);
+        return;
+      }
+
+      try {
+        const ratings = await ratingService.getUserRatings(user.id);
+        console.log('Fetched ratings for user:', user.id, 'Count:', ratings.length, ratings);
+        
+        if (ratings.length === 0) {
+          setAverageSkill(null);
+          setAverageSatisfaction(null);
+          setRatingCount(0);
+          return;
+        }
+
+        setRatingCount(ratings.length);
+
+        // Calculate average skill
+        const skillValues: number[] = [];
+        ratings.forEach(rating => {
+          if (rating.skill) {
+            if (typeof rating.skill === 'number') {
+              skillValues.push(rating.skill);
+            } else if (typeof rating.skill === 'string') {
+              switch (rating.skill) {
+                case 'newbie': skillValues.push(1); break;
+                case 'intermediate': skillValues.push(3); break;
+                case 'advanced': skillValues.push(5); break;
+              }
+            }
+          }
+        });
+
+        if (skillValues.length > 0) {
+          const avgSkill = skillValues.reduce((a, b) => a + b, 0) / skillValues.length;
+          if (avgSkill <= 2) setAverageSkill('newbie');
+          else if (avgSkill >= 4) setAverageSkill('advanced');
+          else setAverageSkill('intermediate');
+        } else {
+          setAverageSkill(null);
+        }
+
+        // Calculate average satisfaction
+        const satisfactionValues: number[] = [];
+        ratings.forEach(rating => {
+          if (rating.satisfaction) {
+            if (typeof rating.satisfaction === 'number') {
+              satisfactionValues.push(rating.satisfaction);
+            } else if (typeof rating.satisfaction === 'string') {
+              switch (rating.satisfaction) {
+                case 'bad': satisfactionValues.push(1); break;
+                case 'ok': satisfactionValues.push(3); break;
+                case 'great': satisfactionValues.push(5); break;
+              }
+            }
+          }
+        });
+
+        if (satisfactionValues.length > 0) {
+          const avgSatisfaction = satisfactionValues.reduce((a, b) => a + b, 0) / satisfactionValues.length;
+          if (avgSatisfaction <= 2) setAverageSatisfaction('bad');
+          else if (avgSatisfaction >= 4) setAverageSatisfaction('great');
+          else setAverageSatisfaction('ok');
+        } else {
+          setAverageSatisfaction(null);
+        }
+      } catch (error) {
+        console.error('Error calculating ratings:', error);
+        setAverageSkill(null);
+        setAverageSatisfaction(null);
+        setRatingCount(0);
+      }
+    };
+
+    calculateRatings();
+  }, [user?.id]);
 
   // Generate signed URL for private bucket avatar
   useEffect(() => {
@@ -3028,7 +3496,7 @@ export const Profile: React.FC = () => {
 
   const fullName = `${user.firstName} ${user.lastName}`.trim() || "User";
   const reliability = user.stats?.reliability || 100;
-  const matches = user.stats?.matches || 0;
+  const matches = actualMatches > 0 ? actualMatches : (user.stats?.matches || 0);
   const mvps = user.stats?.mvps || 0;
   const level = user.level || 1;
 
@@ -3063,7 +3531,7 @@ export const Profile: React.FC = () => {
               src={
                 avatarPreview ||
                 avatarSignedUrl ||
-                `https://i.pravatar.cc/150?u=${user.id}`
+                ""
               }
               size="w-16 h-16"
               className="border-2 border-primary/30 lg:w-14 lg:h-14"
@@ -3200,6 +3668,56 @@ export const Profile: React.FC = () => {
             {t("profile.mvps")}
           </span>
           <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{mvps}</span>
+        </div>
+      </div>
+
+      {/* Rating Analysis */}
+      <div className="grid grid-cols-2 gap-2 px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-2">
+        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
+          <div className="flex items-center gap-1 mb-0.5">
+            <span className="material-symbols-outlined text-xs text-slate-400">
+              {averageSkill === 'newbie' ? 'trending_up' : averageSkill === 'advanced' ? 'emoji_events' : averageSkill === 'intermediate' ? 'trending_flat' : 'star'}
+            </span>
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
+              {t("profile.averageSkill")}
+            </span>
+          </div>
+          {ratingCount >= 10 && averageSkill ? (
+            <span className="text-sm font-bold lg:text-xs">
+              {t(`ratings.skillLevel.${averageSkill}`)}
+            </span>
+          ) : (
+            <span className="text-sm font-bold text-slate-500 lg:text-xs">
+              {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
+            </span>
+          )}
+        </div>
+        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
+          <div className="flex items-center gap-1 mb-0.5">
+            <span className={`material-symbols-outlined text-xs ${
+              averageSatisfaction === 'bad' ? 'text-red-400' : 
+              averageSatisfaction === 'great' ? 'text-green-400' : 
+              averageSatisfaction === 'ok' ? 'text-yellow-400' :
+              'text-slate-400'
+            }`}>
+              {averageSatisfaction === 'bad' ? 'sentiment_dissatisfied' : 
+               averageSatisfaction === 'great' ? 'sentiment_very_satisfied' : 
+               averageSatisfaction === 'ok' ? 'sentiment_neutral' :
+               'sentiment_neutral'}
+            </span>
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
+              {t("profile.averageSatisfaction")}
+            </span>
+          </div>
+          {ratingCount >= 10 && averageSatisfaction ? (
+            <span className="text-sm font-bold lg:text-xs">
+              {t(`ratings.satisfactionLevel.${averageSatisfaction}`)}
+            </span>
+          ) : (
+            <span className="text-sm font-bold text-slate-500 lg:text-xs">
+              {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -3375,6 +3893,9 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [searchedUserSkill, setSearchedUserSkill] = useState<string | null>(null);
+  const [searchedUserSatisfaction, setSearchedUserSatisfaction] = useState<string | null>(null);
+  const [searchedUserRatingCount, setSearchedUserRatingCount] = useState<number>(0);
 
   const handleSearch = async () => {
     if (!searchUserId.trim()) {
@@ -3399,12 +3920,83 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
           setError("You cannot add yourself as a friend");
         } else {
           setSearchedUser(user);
+          
+          // Fetch and calculate ratings for the searched user
+          try {
+            const ratings = await ratingService.getUserRatings(user.id);
+            setSearchedUserRatingCount(ratings.length);
+            
+            if (ratings.length >= 10) {
+              // Calculate average skill
+              const skillValues: number[] = [];
+              ratings.forEach(rating => {
+                if (rating.skill) {
+                  if (typeof rating.skill === 'number') {
+                    skillValues.push(rating.skill);
+                  } else if (typeof rating.skill === 'string') {
+                    switch (rating.skill) {
+                      case 'newbie': skillValues.push(1); break;
+                      case 'intermediate': skillValues.push(3); break;
+                      case 'advanced': skillValues.push(5); break;
+                    }
+                  }
+                }
+              });
+
+              if (skillValues.length > 0) {
+                const avgSkill = skillValues.reduce((a, b) => a + b, 0) / skillValues.length;
+                if (avgSkill <= 2) setSearchedUserSkill('newbie');
+                else if (avgSkill >= 4) setSearchedUserSkill('advanced');
+                else setSearchedUserSkill('intermediate');
+              } else {
+                setSearchedUserSkill(null);
+              }
+
+              // Calculate average satisfaction
+              const satisfactionValues: number[] = [];
+              ratings.forEach(rating => {
+                if (rating.satisfaction) {
+                  if (typeof rating.satisfaction === 'number') {
+                    satisfactionValues.push(rating.satisfaction);
+                  } else if (typeof rating.satisfaction === 'string') {
+                    switch (rating.satisfaction) {
+                      case 'bad': satisfactionValues.push(1); break;
+                      case 'ok': satisfactionValues.push(3); break;
+                      case 'great': satisfactionValues.push(5); break;
+                    }
+                  }
+                }
+              });
+
+              if (satisfactionValues.length > 0) {
+                const avgSatisfaction = satisfactionValues.reduce((a, b) => a + b, 0) / satisfactionValues.length;
+                if (avgSatisfaction <= 2) setSearchedUserSatisfaction('bad');
+                else if (avgSatisfaction >= 4) setSearchedUserSatisfaction('great');
+                else setSearchedUserSatisfaction('ok');
+              } else {
+                setSearchedUserSatisfaction(null);
+              }
+            } else {
+              setSearchedUserSkill(null);
+              setSearchedUserSatisfaction(null);
+            }
+          } catch (ratingError) {
+            console.error('Error fetching ratings:', ratingError);
+            setSearchedUserSkill(null);
+            setSearchedUserSatisfaction(null);
+            setSearchedUserRatingCount(0);
+          }
         }
       } else {
         setError(t("profile.userNotFound"));
+        setSearchedUserSkill(null);
+        setSearchedUserSatisfaction(null);
+        setSearchedUserRatingCount(0);
       }
     } catch (err: any) {
       setError(err.message || t("profile.errorSearching"));
+      setSearchedUserSkill(null);
+      setSearchedUserSatisfaction(null);
     } finally {
       setIsSearching(false);
     }
@@ -3491,9 +4083,55 @@ const AddFriendSection: React.FC<{ currentUser: User }> = ({ currentUser }) => {
               className="lg:w-9 lg:h-9"
             />
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm truncate lg:text-sm">
-                {searchedUser.firstName} {searchedUser.lastName}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-bold text-sm truncate lg:text-sm">
+                  {searchedUser.firstName} {searchedUser.lastName}
+                </p>
+                {/* Rating Display - Chips next to name (only if >= 10 ratings) */}
+                {searchedUserRatingCount >= 10 && (searchedUserSkill || searchedUserSatisfaction) && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {searchedUserSkill && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-surface rounded-full border border-white/10 text-[10px] font-medium lg:text-[10px] ${
+                        searchedUserSkill === 'newbie' ? 'text-blue-300' : 
+                        searchedUserSkill === 'advanced' ? 'text-purple-300' : 
+                        'text-cyan-300'
+                      }`}>
+                        <span className={`material-symbols-outlined text-[12px] ${
+                          searchedUserSkill === 'newbie' ? 'text-blue-400' : 
+                          searchedUserSkill === 'advanced' ? 'text-purple-400' : 
+                          'text-cyan-400'
+                        }`}>
+                          {searchedUserSkill === 'newbie' ? 'trending_up' : searchedUserSkill === 'advanced' ? 'emoji_events' : 'trending_flat'}
+                        </span>
+                        {t(`ratings.skillLevel.${searchedUserSkill}`)}
+                      </span>
+                    )}
+                    {searchedUserSatisfaction && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-surface rounded-full border border-white/10 text-[10px] font-medium lg:text-[10px] ${
+                        searchedUserSatisfaction === 'bad' ? 'text-red-300' : 
+                        searchedUserSatisfaction === 'great' ? 'text-green-300' : 
+                        'text-yellow-300'
+                      }`}>
+                        <span className={`material-symbols-outlined text-[12px] ${
+                          searchedUserSatisfaction === 'bad' ? 'text-red-400' : 
+                          searchedUserSatisfaction === 'great' ? 'text-green-400' : 
+                          'text-yellow-400'
+                        }`}>
+                          {searchedUserSatisfaction === 'bad' ? 'sentiment_dissatisfied' : 
+                           searchedUserSatisfaction === 'great' ? 'sentiment_very_satisfied' : 
+                           'sentiment_neutral'}
+                        </span>
+                        {t(`ratings.satisfactionLevel.${searchedUserSatisfaction}`)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {searchedUserRatingCount > 0 && searchedUserRatingCount < 10 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface/50 rounded-full border border-white/10 text-[10px] font-medium text-slate-400 lg:text-[10px]">
+                    {t("profile.notEnoughRatings")}
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-slate-400 truncate lg:text-xs">
                 {searchedUser.userId}
               </p>

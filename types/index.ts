@@ -77,6 +77,8 @@ export interface Rating {
   raterId: string;
   ratedUserId: string;
   stars: number;
+  skill?: number | string; // Skill rating: 'newbie' | 'intermediate' | 'advanced' (stored as 1, 3, 5 in DB)
+  satisfaction?: number | string; // Satisfaction rating: 'bad' | 'ok' | 'great' (stored as 1, 3, 5 in DB)
   tags: string[];
   comment?: string;
   createdAt: string;

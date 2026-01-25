@@ -9,10 +9,11 @@ import { supabase } from '../lib/supabase';
 export const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getUserInvitations, getEvent } = useEvents();
+  const { getUserInvitations, getEvent, getEventRequests, events } = useEvents();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [invitationCount, setInvitationCount] = useState(0);
+  const [otherRequestsCount, setOtherRequestsCount] = useState(0);
   const friendRequestCount = user?.friendRequests?.length || 0;
 
   const isActive = (path: string) => location.pathname === path;
@@ -137,6 +138,115 @@ export const BottomNav: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, getUserInvitations]);
 
+  // Load requests from other people (requests to join events the user created)
+  useEffect(() => {
+    if (!user) {
+      setOtherRequestsCount(0);
+      return;
+    }
+
+    const loadOtherRequests = async () => {
+      try {
+        const userCreatedEvents = events.filter((e) => e.organizerId === user.id);
+        let totalRequests = 0;
+
+        for (const event of userCreatedEvents) {
+          try {
+            const requests = await getEventRequests(event.id);
+            const pendingRequests = requests.filter((r) => r.status === 'pending');
+            totalRequests += pendingRequests.length;
+          } catch (error) {
+            logger.error(`Error loading requests for event ${event.id}:`, error);
+          }
+        }
+
+        setOtherRequestsCount(totalRequests);
+      } catch (error: any) {
+        logger.error('Error loading other requests:', error);
+        setOtherRequestsCount(0);
+      }
+    };
+
+    loadOtherRequests();
+
+    // Set up real-time subscription for requests to user's events
+    let channel: any = null;
+    const setupRealtime = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase');
+        const userId = user.id;
+        
+        channel = supabase
+          .channel(`user_event_requests:${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'event_requests',
+            },
+            async (payload) => {
+              logger.debug('Real-time request change received');
+              
+              const newRecord = payload.new as any;
+              const oldRecord = payload.old as any;
+              
+              // Check if this request is for an event the user created
+              const eventId = newRecord?.event_id || oldRecord?.event_id;
+              if (!eventId) return;
+              
+              const event = getEvent(eventId);
+              if (!event || event.organizerId !== userId) return;
+              
+              // Reload requests count
+              try {
+                const userCreatedEvents = events.filter((e) => e.organizerId === userId);
+                let totalRequests = 0;
+
+                for (const evt of userCreatedEvents) {
+                  try {
+                    const requests = await getEventRequests(evt.id);
+                    const pendingRequests = requests.filter((r) => r.status === 'pending');
+                    totalRequests += pendingRequests.length;
+                  } catch (error) {
+                    logger.error(`Error loading requests for event ${evt.id}:`, error);
+                  }
+                }
+
+                setOtherRequestsCount(totalRequests);
+              } catch (error: any) {
+                logger.error('Error reloading requests in real-time callback:', error);
+              }
+            }
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              logger.log('Real-time subscription active for event requests');
+            } else if (status === 'CHANNEL_ERROR') {
+              logger.warn('Real-time subscription error for event requests:', err);
+            } else if (status === 'TIMED_OUT') {
+              logger.warn('Real-time subscription timed out for event requests');
+            }
+          });
+      } catch (error) {
+        logger.error('Error setting up real-time subscription for requests:', error);
+      }
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) {
+        import('../lib/supabase').then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        }).catch(err => {
+          logger.error('Error removing channel:', err);
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, events, getEventRequests]);
+
   const NavItem = ({ path, icon, label, showNotification = false, notificationCount = 0 }: { 
     path: string; 
     icon: string; 
@@ -173,8 +283,8 @@ export const BottomNav: React.FC = () => {
           path="/my-games" 
           icon="sports_score" 
           label={t('nav.myGames')} 
-          showNotification={invitationCount > 0}
-          notificationCount={invitationCount}
+          showNotification={invitationCount > 0 || otherRequestsCount > 0}
+          notificationCount={invitationCount + otherRequestsCount}
         />
         <div className="relative -top-5 lg:static lg:my-2">
            <button onClick={() => navigate('/event/create')} className="h-14 w-14 rounded-full bg-primary text-white shadow-lg shadow-primary/40 flex items-center justify-center transform hover:scale-105 transition-all lg:w-10 lg:h-10">
