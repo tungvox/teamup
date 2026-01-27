@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase';
 import { User } from '../../types';
 import { generateUserId } from '../../utils/userId';
 import { logger } from '../../utils/logger';
+import { calculateTier, Tier } from '../../utils/tierSystem';
 
 // Mapper functions
 function mapUserFromDB(row: any): User {
@@ -44,6 +45,7 @@ function mapUserFromDB(row: any): User {
     sports: row.sports,
     stats: row.stats,
     level: row.level,
+    tier: row.tier || 'bronze',
     friends: friends,
     friendRequests: friendRequests,
     createdAt: row.created_at,
@@ -62,6 +64,7 @@ function mapUserToDB(user: Partial<User>): any {
   if (user.sports !== undefined) mapped.sports = user.sports;
   if (user.stats !== undefined) mapped.stats = user.stats;
   if (user.level !== undefined) mapped.level = user.level;
+  if (user.tier !== undefined) mapped.tier = user.tier;
   if (user.friends !== undefined) mapped.friends = user.friends;
   if (user.friendRequests !== undefined) mapped.friend_requests = user.friendRequests;
   return mapped;
@@ -148,6 +151,7 @@ export const createUserProfile = async (userData: {
         mvps: 0,
       },
       level: 1,
+      tier: 'bronze',
       friends: [] as string[],
       friend_requests: [] as string[],
     } as any)
@@ -192,4 +196,23 @@ export const updateUserProfile = async (clerkId: string, updates: Partial<User>)
   }
 
   logger.log('User profile updated successfully via RPC');
+};
+
+/**
+ * Calculate and update user tier based on skill, satisfaction, matches, and reliability
+ */
+export const calculateAndUpdateTier = async (
+  clerkId: string,
+  skill: string | null | undefined,
+  satisfaction: string | null | undefined,
+  matches: number,
+  reliability: number = 100
+): Promise<Tier> => {
+  const tier = calculateTier(skill, satisfaction, matches, reliability);
+  
+  await updateUserProfile(clerkId, { tier });
+  
+  logger.log('Tier calculated and updated:', { clerkId, tier, skill, satisfaction, matches, reliability });
+  
+  return tier;
 };

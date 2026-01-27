@@ -24,6 +24,8 @@ import {
 import { isValidUserId } from "../utils/userId";
 import { supabase } from "../lib/supabase";
 import { ratingService } from "../services/ratings/ratingService";
+import { getTierInfo, calculateTier, Tier } from "../utils/tierSystem";
+import { calculateAndUpdateTier } from "../services/users/userProfileService";
 
 interface Sport {
   id: string;
@@ -3322,6 +3324,35 @@ export const Profile: React.FC = () => {
     calculateRatings();
   }, [user?.id]);
 
+  // Calculate and update tier when ratings or matches change
+  useEffect(() => {
+    const updateTier = async () => {
+      if (!user?.id) return;
+      
+      const matches = actualMatches > 0 ? actualMatches : (user.stats?.matches || 0);
+      const reliability = user.stats?.reliability || 100;
+      
+      // Only update tier if we have enough ratings (at least 10)
+      if (ratingCount >= 10 && averageSkill && averageSatisfaction) {
+        try {
+          const newTier = await calculateAndUpdateTier(
+            user.id,
+            averageSkill,
+            averageSatisfaction,
+            matches,
+            reliability
+          );
+          // Refresh user to get updated tier
+          await refreshUser();
+        } catch (error) {
+          console.error('Error updating tier:', error);
+        }
+      }
+    };
+
+    updateTier();
+  }, [user?.id, averageSkill, averageSatisfaction, actualMatches, ratingCount, user?.stats?.reliability, refreshUser]);
+
   // Generate signed URL for private bucket avatar
   useEffect(() => {
     const generateSignedUrl = async () => {
@@ -3499,6 +3530,12 @@ export const Profile: React.FC = () => {
   const matches = actualMatches > 0 ? actualMatches : (user.stats?.matches || 0);
   const mvps = user.stats?.mvps || 0;
   const level = user.level || 1;
+  
+  // Calculate tier - use stored tier or calculate from current data
+  const userTier = user.tier as Tier || (ratingCount >= 10 && averageSkill && averageSatisfaction 
+    ? calculateTier(averageSkill, averageSatisfaction, matches, reliability)
+    : 'bronze');
+  const tierInfo = getTierInfo(userTier);
 
   return (
     <div className="flex flex-col bg-background min-h-screen pb-24 lg:pb-4">
@@ -3524,202 +3561,326 @@ export const Profile: React.FC = () => {
       </header>
 
       <div className="lg:max-w-4xl lg:mx-auto lg:w-full">
-        {/* Compact Profile Header */}
-        <div className="flex items-center gap-4 px-4 pt-4 pb-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-3">
-          <div className="relative">
-            <Avatar
-              src={
-                avatarPreview ||
-                avatarSignedUrl ||
-                ""
-              }
-              size="w-16 h-16"
-              className="border-2 border-primary/30 lg:w-14 lg:h-14"
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarUpload}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUpdatingAvatar}
-              className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-background/90 border border-white/10 flex items-center justify-center text-slate-300 hover:text-white hover:bg-background transition-colors lg:w-6 lg:h-6"
-              title="Upload photo"
-            >
-              <span className="material-symbols-outlined text-[16px] lg:text-sm">
-                {isUpdatingAvatar ? "hourglass_top" : "photo_camera"}
-              </span>
-            </button>
-            <div className="absolute -bottom-1 -left-1 bg-gradient-to-r from-yellow-500 to-yellow-600 border-2 border-background px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg lg:px-1.5 lg:py-0.5">
-              <span className="material-symbols-outlined text-[10px] text-white lg:text-[9px]">
-                military_tech
-              </span>
-              <span className="text-[9px] font-bold text-white lg:text-[9px]">
-                {level}
-              </span>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            {isEditingName ? (
-              <div className="space-y-1">
-                <div className="flex gap-1.5 lg:gap-1.5">
-                  <input
-                    type="text"
-                    value={firstNameInput}
-                    onChange={(e) => setFirstNameInput(e.target.value)}
-                    placeholder="First name"
-                    className="flex-1 bg-surface/60 rounded-md px-2 py-1 text-sm outline-none border border-white/10 focus:border-primary transition-colors text-white lg:px-2 lg:py-1 lg:text-sm"
-                  />
-                  <input
-                    type="text"
-                    value={lastNameInput}
-                    onChange={(e) => setLastNameInput(e.target.value)}
-                    placeholder="Last name"
-                    className="flex-1 bg-surface/60 rounded-md px-2 py-1 text-sm outline-none border border-white/10 focus:border-primary transition-colors text-white lg:px-2 lg:py-1 lg:text-sm"
-                  />
-                </div>
-                <div className="flex gap-1.5 lg:gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleNameSave}
-                    disabled={isUpdatingName}
-                    className="px-2.5 py-1 rounded-md bg-primary text-xs font-bold text-white hover:bg-primary/80 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
-                  >
-                    {isUpdatingName ? "..." : "Save"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNameCancel}
-                    disabled={isUpdatingName}
-                    className="px-2.5 py-1 rounded-md bg-surface/70 text-xs font-bold text-slate-200 hover:bg-surface/90 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
-                  >
-                    Cancel
-                  </button>
+        {/* Pokemon Card Style Profile */}
+        <div className="mx-4 mt-4 mb-4 lg:mx-5 lg:mt-4 lg:mb-4 flex justify-center">
+          <div 
+            className="relative rounded-2xl border-4 overflow-hidden w-full max-w-xs lg:max-w-[320px] lg:rounded-xl transition-all duration-75 ease-out shadow-2xl"
+            style={{
+              background: `linear-gradient(to bottom right, ${tierInfo.colors.gradientFrom}, ${tierInfo.colors.gradientVia}, ${tierInfo.colors.gradientTo})`,
+              borderColor: `${tierInfo.colors.border}66`,
+              boxShadow: `0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px ${tierInfo.colors.primary}4D, 0 0 0 1px ${tierInfo.colors.border}33`,
+            }}
+          >
+            {/* Dark overlay for text readability */}
+            <div className="absolute inset-0 bg-slate-900/50 pointer-events-none"></div>
+            {/* Holographic effect overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/10 pointer-events-none"></div>
+            
+            {/* Card Header with Name and Level */}
+            <div className="relative px-3 pt-3 pb-1.5 border-b-2 bg-gradient-to-r lg:px-3 lg:pt-2.5 lg:pb-1.5" style={{ borderColor: `${tierInfo.colors.border}50`, background: `linear-gradient(to right, ${tierInfo.colors.primary}40, transparent, ${tierInfo.colors.primary}40)` }}>
+              <div className="flex items-center justify-between mb-2">
+                {isEditingName ? (
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={firstNameInput}
+                        onChange={(e) => setFirstNameInput(e.target.value)}
+                        placeholder="First name"
+                        className="flex-1 bg-background/80 rounded-md px-2 py-1.5 text-sm outline-none border-2 border-yellow-400/50 focus:border-yellow-400 transition-colors text-white font-bold lg:px-2 lg:py-1 lg:text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={lastNameInput}
+                        onChange={(e) => setLastNameInput(e.target.value)}
+                        placeholder="Last name"
+                        className="flex-1 bg-background/80 rounded-md px-2 py-1.5 text-sm outline-none border-2 border-yellow-400/50 focus:border-yellow-400 transition-colors text-white font-bold lg:px-2 lg:py-1 lg:text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleNameSave}
+                        disabled={isUpdatingName}
+                        className="px-3 py-1.5 rounded-md bg-yellow-500 text-xs font-bold text-slate-900 hover:bg-yellow-400 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
+                      >
+                        {isUpdatingName ? "..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNameCancel}
+                        disabled={isUpdatingName}
+                        className="px-3 py-1.5 rounded-md bg-surface/70 text-xs font-bold text-slate-200 hover:bg-surface/90 transition-colors disabled:opacity-60 lg:px-2.5 lg:py-1 lg:text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <h2 className="text-xl font-extrabold drop-shadow-lg lg:text-lg text-white">
+                    {fullName}
+                  </h2>
+                )}
+                <div className="flex items-center gap-2">
+                  {!isEditingName && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingName(true)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-colors lg:w-6 lg:h-6"
+                      style={{ 
+                        backgroundColor: `${tierInfo.colors.primary}33`,
+                        color: tierInfo.colors.primary
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = `${tierInfo.colors.primary}50`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = `${tierInfo.colors.primary}33`;
+                      }}
+                      title="Edit name"
+                    >
+                      <span className="material-symbols-outlined text-[18px] lg:text-base">
+                        edit
+                      </span>
+                    </button>
+                  )}
+                  {/* Tier Badge */}
+                  <div className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider lg:px-1.5 lg:py-0.5 lg:text-[8px]" style={{ backgroundColor: tierInfo.colors.primary, color: tierInfo.colors.text }}>
+                    {tierInfo.displayName}
+                  </div>
+                  {/* Level Badge */}
+                  <div className="border-2 px-3 py-1 rounded-full flex items-center gap-1 shadow-lg lg:px-2.5 lg:py-0.5" style={{ background: `linear-gradient(to right, ${tierInfo.colors.primary}, ${tierInfo.colors.secondary})`, borderColor: tierInfo.colors.border }}>
+                    <span className="material-symbols-outlined text-[14px] lg:text-xs" style={{ color: tierInfo.colors.text }}>
+                      military_tech
+                    </span>
+                    <span className="text-sm font-extrabold lg:text-xs" style={{ color: tierInfo.colors.text }}>
+                      LV.{level}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-lg font-bold truncate lg:text-base">
-                  {fullName}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingName(true)}
-                  className="w-6 h-6 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-300 hover:text-white transition-colors lg:w-5 lg:h-5"
-                  title="Edit name"
-                >
-                  <span className="material-symbols-outlined text-[16px] lg:text-sm">
-                    edit
+              <div className="flex items-center gap-2 mt-1 lg:gap-1.5 lg:mt-0.5">
+                {user.userId && (
+                  <div className="flex items-center gap-1 text-slate-300 text-[10px] lg:gap-0.5 lg:text-[9px]">
+                    <span className="text-slate-400">ID:</span>
+                    <code className="font-mono text-[10px] font-bold truncate lg:text-[9px] text-yellow-400">
+                      {user.userId}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(user.userId);
+                      }}
+                      className="p-0.5 rounded transition-colors flex-shrink-0"
+                      style={{ 
+                        backgroundColor: `${tierInfo.colors.primary}33`,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = `${tierInfo.colors.primary}50`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = `${tierInfo.colors.primary}33`;
+                      }}
+                      title="Copy user ID"
+                    >
+                      <span className="material-symbols-outlined text-[10px] lg:text-[9px] text-yellow-400">
+                        content_copy
+                      </span>
+                    </button>
+                  </div>
+                )}
+                {user.location && (
+                  <div className="flex items-center gap-0.5 text-slate-300 text-[10px] lg:text-[9px]">
+                  <span className="material-symbols-outlined text-[12px] lg:text-[10px] text-yellow-400">
+                    location_on
                   </span>
-                </button>
+                    <span className="truncate text-slate-300">{user.location}</span>
+                  </div>
+                )}
               </div>
-            )}
-          {user.userId && (
-            <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-0.5 lg:gap-1.5 lg:text-xs lg:mt-0.5">
-              <span className="text-slate-400">ID:</span>
-              <code className="text-primary font-mono text-sm truncate lg:text-sm">
-                {user.userId}
-              </code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(user.userId);
-                }}
-                className="p-0.5 rounded hover:bg-primary/20 transition-colors flex-shrink-0"
-                title="Copy user ID"
-              >
-                <span className="material-symbols-outlined text-[14px] lg:text-sm">
-                  content_copy
-                </span>
-              </button>
             </div>
-          )}
-          {user.location && (
-            <div className="flex items-center gap-1 text-slate-400 text-xs mt-0.5 lg:text-xs lg:mt-0.5">
-              <span className="material-symbols-outlined text-[14px] text-primary lg:text-sm">
-                location_on
-              </span>
-              <span className="truncate">{user.location}</span>
+
+            {/* Profile Image Section - Pokemon Card Style */}
+            <div className="relative px-3 py-4 lg:px-3 lg:py-3">
+              <div className="flex justify-center">
+                <div className="relative">
+                  {/* Card-like image container */}
+                  <div className="relative w-52 h-52 rounded-xl border-[3px] bg-gradient-to-br from-slate-700 to-slate-900 p-1.5 shadow-2xl lg:w-48 lg:h-48 lg:rounded-lg" style={{ borderColor: `${tierInfo.colors.border}80` }}>
+                    <div className="absolute inset-0 rounded-xl" style={{ background: `linear-gradient(to bottom right, ${tierInfo.colors.primary}33, transparent, ${tierInfo.colors.secondary}33)` }}></div>
+                    <div className="relative w-full h-full rounded-xl overflow-hidden bg-slate-800">
+                      <img
+                        src={
+                          avatarPreview ||
+                          avatarSignedUrl ||
+                          (user?.id ? `https://i.pravatar.cc/150?u=${user.id}` : "")
+                        }
+                        alt={fullName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {/* Camera button */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUpdatingAvatar}
+                      className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full border-[3px] border-slate-900 flex items-center justify-center transition-all shadow-lg lg:w-7 lg:h-7"
+                      style={{ 
+                        background: `linear-gradient(to bottom right, ${tierInfo.colors.primary}, ${tierInfo.colors.secondary})`,
+                        color: tierInfo.colors.text
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = `linear-gradient(to bottom right, ${tierInfo.colors.secondary}, ${tierInfo.colors.primary})`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = `linear-gradient(to bottom right, ${tierInfo.colors.primary}, ${tierInfo.colors.secondary})`;
+                      }}
+                      title="Upload photo"
+                    >
+                      <span className="material-symbols-outlined text-[16px] lg:text-sm">
+                        {isUpdatingAvatar ? "hourglass_top" : "photo_camera"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Compact Stats */}
-      <div className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-2">
-        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
-            {t("profile.matches")}
-          </span>
-          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{matches}</span>
-        </div>
-        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-primary/20 relative overflow-hidden lg:p-2">
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-green-400 to-yellow-400"></div>
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
-            {t("profile.reliability")}
-          </span>
-          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{reliability}%</span>
-        </div>
-        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
-          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
-            {t("profile.mvps")}
-          </span>
-          <span className="text-xl font-bold mt-0.5 lg:text-lg lg:mt-0.5">{mvps}</span>
-        </div>
-      </div>
+            {/* Stats Section - Pokemon Card Style */}
+            <div className="px-3 pb-3 space-y-2 lg:px-3 lg:pb-2.5 lg:space-y-1.5">
+              <div className="text-center">
+                <h3 className="text-[10px] font-extrabold uppercase tracking-widest mb-1.5 lg:text-[9px] lg:mb-1 text-yellow-400">
+                  {t("profile.matches")}
+                </h3>
+                <div className="bg-slate-800/60 rounded-lg border-2 p-2 lg:p-1.5" style={{ borderColor: `${tierInfo.colors.border}50` }}>
+                  <div className="text-3xl font-extrabold drop-shadow-lg lg:text-2xl text-yellow-400">
+                    {matches}
+                  </div>
+                  <div className="text-[9px] text-white uppercase tracking-wider mt-0.5 lg:text-[8px]">
+                    Trận đấu
+                  </div>
+                </div>
+              </div>
 
-      {/* Rating Analysis */}
-      <div className="grid grid-cols-2 gap-2 px-4 py-3 border-b border-white/5 lg:px-5 lg:py-2.5 lg:gap-2">
-        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
-          <div className="flex items-center gap-1 mb-0.5">
-            <span className="material-symbols-outlined text-xs text-slate-400">
-              {averageSkill === 'newbie' ? 'trending_up' : averageSkill === 'advanced' ? 'emoji_events' : averageSkill === 'intermediate' ? 'trending_flat' : 'star'}
-            </span>
-            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
-              {t("profile.averageSkill")}
-            </span>
+              <div className="grid grid-cols-2 gap-2 lg:gap-1.5">
+                {/* Reliability Stat */}
+                <div className="bg-slate-800/60 rounded-lg border-2 border-green-400/40 p-2 relative overflow-hidden lg:p-1.5">
+                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-green-400 to-emerald-500"></div>
+                  <div className="flex items-center gap-1.5 mb-1.5 lg:gap-1 lg:mb-1">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center lg:w-5 lg:h-5">
+                      <span className="material-symbols-outlined text-white text-xs lg:text-[10px]">
+                        verified
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[8px] uppercase tracking-wider text-white font-bold lg:text-[7px]">
+                        {t("profile.reliability")}
+                      </div>
+                      <div className="text-xl font-extrabold text-green-400 lg:text-lg">
+                        {reliability}%
+                      </div>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
+                      style={{ width: `${reliability}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* MVP Stat */}
+                <div className="bg-slate-800/60 rounded-lg border-2 border-purple-400/40 p-2 relative overflow-hidden lg:p-1.5">
+                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-400 to-pink-500"></div>
+                  <div className="flex items-center gap-1.5 mb-1.5 lg:gap-1 lg:mb-1">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-400 to-pink-600 flex items-center justify-center lg:w-5 lg:h-5">
+                      <span className="material-symbols-outlined text-white text-xs lg:text-[10px]">
+                        emoji_events
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[8px] uppercase tracking-wider text-white font-bold lg:text-[7px]">
+                        {t("profile.mvps")}
+                      </div>
+                      <div className="text-xl font-extrabold text-purple-400 lg:text-lg">
+                        {mvps}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Star rating visual */}
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <span
+                        key={i}
+                        className={`material-symbols-outlined text-[10px] ${
+                          i < mvps ? "text-yellow-400" : "text-slate-600"
+                        } lg:text-[9px]`}
+                      >
+                        star
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rating Analysis - Skill and Satisfaction */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t-2 border-yellow-400/20 lg:gap-1.5 lg:pt-1.5">
+                <div className="bg-slate-800/60 rounded-lg border-2 border-blue-400/30 p-2 flex flex-col items-center lg:p-1.5">
+                  <div className="flex items-center gap-1 mb-0.5 lg:gap-0.5 lg:mb-0.5">
+                    <span className="material-symbols-outlined text-[10px] text-blue-400 lg:text-[9px]">
+                      {averageSkill === 'newbie' ? 'trending_up' : averageSkill === 'advanced' ? 'emoji_events' : averageSkill === 'intermediate' ? 'trending_flat' : 'star'}
+                    </span>
+                    <span className="text-[8px] uppercase tracking-wider text-white font-bold lg:text-[7px]">
+                      {t("profile.averageSkill")}
+                    </span>
+                  </div>
+                  {ratingCount >= 10 && averageSkill ? (
+                    <span className="text-xs font-bold text-blue-400 lg:text-[10px]">
+                      {t(`ratings.skillLevel.${averageSkill}`)}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-white lg:text-[10px]">
+                      {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
+                    </span>
+                  )}
+                </div>
+                <div className="bg-slate-800/60 rounded-lg border-2 border-orange-400/30 p-2 flex flex-col items-center lg:p-1.5">
+                  <div className="flex items-center gap-1 mb-0.5 lg:gap-0.5 lg:mb-0.5">
+                    <span className={`material-symbols-outlined text-[10px] ${
+                      averageSatisfaction === 'bad' ? 'text-red-400' : 
+                      averageSatisfaction === 'great' ? 'text-green-400' : 
+                      averageSatisfaction === 'ok' ? 'text-yellow-400' :
+                      'text-slate-400'
+                    } lg:text-[9px]`}>
+                      {averageSatisfaction === 'bad' ? 'sentiment_dissatisfied' : 
+                       averageSatisfaction === 'great' ? 'sentiment_very_satisfied' : 
+                       averageSatisfaction === 'ok' ? 'sentiment_neutral' :
+                       'sentiment_neutral'}
+                    </span>
+                    <span className="text-[8px] uppercase tracking-wider text-white font-bold lg:text-[7px]">
+                      {t("profile.averageSatisfaction")}
+                    </span>
+                  </div>
+                  {ratingCount >= 10 && averageSatisfaction ? (
+                    <span className="text-xs font-bold lg:text-[10px]">
+                      {t(`ratings.satisfactionLevel.${averageSatisfaction}`)}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-white lg:text-[10px]">
+                      {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-          {ratingCount >= 10 && averageSkill ? (
-            <span className="text-sm font-bold lg:text-xs">
-              {t(`ratings.skillLevel.${averageSkill}`)}
-            </span>
-          ) : (
-            <span className="text-sm font-bold text-slate-500 lg:text-xs">
-              {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
-            </span>
-          )}
         </div>
-        <div className="bg-surface/50 p-2 rounded-lg flex flex-col items-center border border-white/5 lg:p-2">
-          <div className="flex items-center gap-1 mb-0.5">
-            <span className={`material-symbols-outlined text-xs ${
-              averageSatisfaction === 'bad' ? 'text-red-400' : 
-              averageSatisfaction === 'great' ? 'text-green-400' : 
-              averageSatisfaction === 'ok' ? 'text-yellow-400' :
-              'text-slate-400'
-            }`}>
-              {averageSatisfaction === 'bad' ? 'sentiment_dissatisfied' : 
-               averageSatisfaction === 'great' ? 'sentiment_very_satisfied' : 
-               averageSatisfaction === 'ok' ? 'sentiment_neutral' :
-               'sentiment_neutral'}
-            </span>
-            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold lg:text-[9px]">
-              {t("profile.averageSatisfaction")}
-            </span>
-          </div>
-          {ratingCount >= 10 && averageSatisfaction ? (
-            <span className="text-sm font-bold lg:text-xs">
-              {t(`ratings.satisfactionLevel.${averageSatisfaction}`)}
-            </span>
-          ) : (
-            <span className="text-sm font-bold text-slate-500 lg:text-xs">
-              {ratingCount === 0 ? t("profile.noRatings") : ratingCount < 10 ? t("profile.notEnoughRatings") : "-"}
-            </span>
-          )}
-        </div>
-      </div>
 
       {/* Sports - Compact Horizontal Scroll */}
       {user.sports && user.sports.length > 0 && (

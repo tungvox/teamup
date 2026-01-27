@@ -29,6 +29,11 @@ export const CreateEvent: React.FC = () => {
   const { createEvent } = useEvents();
   useAuth();
   const { t } = useLanguage();
+  
+  // Step management
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 6;
+  
   const [title, setTitle] = useState("");
   const [sport, setSport] = useState("Tennis");
   const [sports, setSports] = useState<Sport[]>([]);
@@ -119,6 +124,62 @@ export const CreateEvent: React.FC = () => {
     return iconMap[sportName] || "sports";
   };
 
+  // Step validation
+  const validateStep = (step: number): boolean => {
+    setError("");
+    switch (step) {
+      case 1: // Sport selection
+        return sport !== "";
+      case 2: // Event name
+        if (!title.trim()) {
+          setError(t('events.validation.eventName'));
+          return false;
+        }
+        return true;
+      case 3: // Date & Time
+        if (!date) {
+          setError(t('events.validation.date'));
+          return false;
+        }
+        if (!time) {
+          setError(t('events.validation.time'));
+          return false;
+        }
+        return true;
+      case 4: // Location
+        if (!location.trim()) {
+          setError(t('events.validation.location'));
+          return false;
+        }
+        return true;
+      case 5: // Details
+        if (maxPlayers < 2) {
+          setError(t('events.validation.minPlayers'));
+          return false;
+        }
+        return true;
+      case 6: // Description (optional, always valid)
+        return true;
+      default:
+        return true;
+    }
+  };
+
+  const handleNext = () => {
+    if (validateStep(currentStep)) {
+      if (currentStep < totalSteps) {
+        setCurrentStep(currentStep + 1);
+      }
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      setError("");
+    }
+  };
+
   const handleCreate = async () => {
     setError("");
 
@@ -190,16 +251,47 @@ export const CreateEvent: React.FC = () => {
         <div className="w-10"></div>
       </div>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 w-full lg:p-6 lg:space-y-3">
-        <div className="lg:max-w-2xl lg:mx-auto lg:w-full">
-        {error && (
-          <div className="p-2 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm lg:p-1.5 lg:text-xs">
-            {error}
+      <main className="flex-1 overflow-y-auto p-4 w-full lg:p-6 flex items-center justify-center">
+        <div className="w-full max-w-2xl mx-auto">
+          {/* Step Progress Indicator */}
+          <div className="mb-6 lg:mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-slate-400 lg:text-[10px]">
+                Step {currentStep} of {totalSteps}
+              </span>
+              <span className="text-xs font-medium text-slate-400 lg:text-[10px]">
+                {Math.round((currentStep / totalSteps) * 100)}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300 ease-out"
+                style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+              ></div>
+            </div>
           </div>
-        )}
 
-        <div>
-          <h2 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.sportType')}</h2>
+          {/* Widget Card */}
+          <div className="bg-surface rounded-2xl border border-white/10 shadow-2xl overflow-hidden lg:rounded-xl">
+            {error && (
+              <div className="p-3 bg-red-500/20 border-b border-red-500/50 text-red-400 text-sm lg:p-2 lg:text-xs">
+                {error}
+              </div>
+            )}
+
+            <div className="p-6 lg:p-4">
+              {/* Step 1: Sport Selection */}
+              {currentStep === 1 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
+                        sports_tennis
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.sportType')}</h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">Choose the sport for your event</p>
+                  </div>
           {sportsLoading ? (
             <div className="flex gap-3 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-white/10 text-slate-400 animate-pulse">
@@ -229,25 +321,48 @@ export const CreateEvent: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
+                </div>
+              )}
 
-        <div className="space-y-3 lg:space-y-2">
-          <div>
-            <label className="text-xs font-medium text-slate-400 ml-1 mb-1 block lg:text-[11px] lg:mb-0.5">
-              {t('events.eventName')}
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Downtown Hoop Session"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-surface rounded-xl px-3 h-10 outline-none border border-white/10 focus:border-primary transition-colors text-white text-sm lg:h-9 lg:px-2.5 lg:text-xs"
-            />
-          </div>
+              {/* Step 2: Event Name */}
+              {currentStep === 2 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
+                        edit
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.eventName')}</h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">Give your event a catchy name</p>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="e.g. Downtown Hoop Session"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full bg-background rounded-xl px-4 py-3 outline-none border-2 border-white/10 focus:border-primary transition-colors text-white text-base lg:px-3 lg:py-2.5 lg:text-sm"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              )}
 
-          <div>
-            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.whenWhere')}</h3>
-            <div className="bg-surface rounded-xl overflow-hidden border border-white/10 divide-y divide-white/5 lg:rounded-lg">
+              {/* Step 3: Date & Time */}
+              {currentStep === 3 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
+                        schedule
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.date')} & {t('events.time')}</h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">When will your event take place?</p>
+                  </div>
+
+                  <div className="bg-background rounded-xl overflow-hidden border border-white/10 divide-y divide-white/5 lg:rounded-lg">
               <div className="flex items-center justify-between p-3 lg:p-2">
                 <div className="flex items-center gap-2 lg:gap-1.5">
                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary lg:w-6 lg:h-6 lg:rounded">
@@ -479,59 +594,73 @@ export const CreateEvent: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div className="p-3 lg:p-2">
-                <div className="flex justify-between items-center mb-2 lg:mb-1.5">
-                  <div className="flex items-center gap-2 lg:gap-1.5">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 lg:w-6 lg:h-6 lg:rounded">
-                      <span className="material-symbols-outlined text-[18px] lg:text-[16px]">
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Location */}
+              {currentStep === 4 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
                         location_on
                       </span>
                     </div>
-                    <span className="font-medium text-sm lg:text-xs">{t('events.location')}</span>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.location')}</h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">Where will your event be held?</p>
                   </div>
-                </div>
-                <Suspense
-                  fallback={
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder={t('events.locationPlaceholder')}
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="w-full bg-surface rounded-xl px-3 h-10 outline-none border border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-2 text-sm"
-                      />
-                      <div className="rounded-lg overflow-hidden border border-white/10 h-28 bg-slate-800 flex items-center justify-center lg:h-24 lg:rounded">
-                        <div className="text-center text-slate-400">
-                          <span className="material-symbols-outlined text-2xl mb-1 block animate-pulse lg:text-xl">
-                            map
-                          </span>
-                          <p className="text-xs lg:text-[10px]">{t('events.loadingMap')}</p>
+                  <Suspense
+                    fallback={
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          placeholder={t('events.locationPlaceholder')}
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          className="w-full bg-background rounded-xl px-4 py-3 outline-none border-2 border-white/10 focus:border-primary transition-colors text-white placeholder:text-slate-400 mb-2 text-base lg:px-3 lg:py-2.5 lg:text-sm"
+                        />
+                        <div className="rounded-lg overflow-hidden border border-white/10 h-48 bg-slate-800 flex items-center justify-center lg:h-40">
+                          <div className="text-center text-slate-400">
+                            <span className="material-symbols-outlined text-3xl mb-2 block animate-pulse lg:text-2xl">
+                              map
+                            </span>
+                            <p className="text-sm lg:text-xs">{t('events.loadingMap')}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  }
-                >
-                  <LocationPicker
-                    location={location}
-                    onLocationChange={(address, lat, lng) => {
-                      setLocation(address);
-                      if (lat && lng) {
-                        setLocationCoords({ lat, lng });
-                      }
-                    }}
-                  />
-                </Suspense>
-              </div>
-            </div>
-          </div>
+                    }
+                  >
+                    <LocationPicker
+                      location={location}
+                      onLocationChange={(address, lat, lng) => {
+                        setLocation(address);
+                        if (lat && lng) {
+                          setLocationCoords({ lat, lng });
+                        }
+                      }}
+                    />
+                  </Suspense>
+                </div>
+              )}
 
-          <div>
-            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">{t('events.details')}</h3>
-            <div className="bg-surface rounded-xl p-3 border border-white/10 lg:rounded-lg lg:p-2">
-              <div>
-                <label className="text-xs font-medium text-slate-400 mb-1 block lg:text-[11px] lg:mb-0.5">
-                  {t('events.totalSpots')}
-                </label>
+              {/* Step 5: Details */}
+              {currentStep === 5 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
+                        settings
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.details')}</h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">Configure event settings</p>
+                  </div>
+                  <div className="bg-background rounded-xl p-4 border border-white/10 lg:rounded-lg lg:p-3 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-300 mb-2 block lg:text-xs">
+                        {t('events.totalSpots')}
+                      </label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -577,14 +706,14 @@ export const CreateEvent: React.FC = () => {
                       setMaxPlayersDisplay(value.toString());
                     }
                   }}
-                  className="w-full bg-white/5 px-3 py-1.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none text-sm lg:px-2 lg:py-1 lg:text-xs"
-                />
-              </div>
-              <div className="space-y-3 pt-3 border-t border-white/5 lg:space-y-2 lg:pt-2">
-                <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1.5 block lg:text-[11px] lg:mb-1">
-                    {t('events.skillLevel')}
-                  </label>
+                      className="w-full bg-white/5 px-4 py-2.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none text-base lg:px-3 lg:py-2 lg:text-sm"
+                    />
+                    </div>
+                    <div className="space-y-4 pt-4 border-t border-white/5">
+                      <div>
+                        <label className="text-sm font-medium text-slate-300 mb-2 block lg:text-xs">
+                          {t('events.skillLevel')}
+                        </label>
                   <div className="grid grid-cols-2 gap-2 lg:gap-1.5">
                     {(
                       ["Beginner", "Intermediate", "Advanced", "All"] as const
@@ -602,14 +731,14 @@ export const CreateEvent: React.FC = () => {
                         {t(`events.skillLevel.${level.toLowerCase()}`)}
                       </button>
                     ))}
-                  </div>
-                </div>
+                      </div>
+                      </div>
 
-                <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1.5 block lg:text-[11px] lg:mb-1">
-                    {t('events.price')} ({t('common.optional')})
-                  </label>
-                  <div className="flex items-center gap-2">
+                      <div>
+                        <label className="text-sm font-medium text-slate-300 mb-2 block lg:text-xs">
+                          {t('events.price')} ({t('common.optional')})
+                        </label>
+                        <div className="flex items-center gap-2">
                     <input
                       type="text"
                       placeholder="0"
@@ -653,89 +782,113 @@ export const CreateEvent: React.FC = () => {
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                      className="flex-1 bg-white/5 px-3 py-1.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none cursor-text relative z-10 text-sm lg:px-2 lg:py-1 lg:text-xs"
-                    />
-                    <span className="text-slate-400 text-xs lg:text-[10px]">VND</span>
-                    {price !== undefined && price > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPrice(undefined);
-                          setPriceDisplay("");
-                        }}
-                        className="text-slate-500 hover:text-white"
-                      >
-                        <span className="material-symbols-outlined text-[20px] lg:text-[16px]">
-                          close
-                        </span>
-                      </button>
-                    )}
+                        className="flex-1 bg-white/5 px-4 py-2.5 rounded-lg text-white border border-white/10 focus:border-primary outline-none cursor-text relative z-10 text-base lg:px-3 lg:py-2 lg:text-sm"
+                      />
+                      <span className="text-slate-400 text-sm lg:text-xs">VND</span>
+                      {price !== undefined && price > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrice(undefined);
+                            setPriceDisplay("");
+                          }}
+                          className="text-slate-500 hover:text-white"
+                        >
+                          <span className="material-symbols-outlined text-xl lg:text-lg">
+                            close
+                          </span>
+                        </button>
+                      )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between lg:gap-2 pt-4 border-t border-white/5">
+                        <div>
+                          <p className="font-medium text-base lg:text-sm">{t('events.competitive')}</p>
+                          <p className="text-sm text-slate-400 lg:text-xs">
+                            {t('events.competitiveDescription')}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCompetitive(!competitive)}
+                          className={`w-12 h-7 rounded-full relative transition-colors lg:w-10 lg:h-6 ${
+                            competitive ? "bg-primary" : "bg-white/10"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform lg:top-0.5 lg:w-4 lg:h-4 ${
+                              competitive ? "left-6 lg:left-5" : "left-1"
+                            }`}
+                          ></div>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="flex items-center justify-between lg:gap-2">
-                  <div>
-                    <p className="font-medium text-sm lg:text-xs">{t('events.competitive')}</p>
-                    <p className="text-xs text-slate-500 lg:text-[10px]">
-                      {t('events.competitiveDescription')}
+              {/* Step 6: Description */}
+              {currentStep === 6 && (
+                <div className="space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-3xl text-primary">
+                        description
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-2 lg:text-lg">
+                      {t('events.description')}
+                    </h2>
+                    <p className="text-sm text-slate-400 lg:text-xs">
+                      {t('common.optional')} - Add more details about your event
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setCompetitive(!competitive)}
-                    className={`w-12 h-7 rounded-full relative transition-colors lg:w-10 lg:h-6 ${
-                      competitive ? "bg-primary" : "bg-white/10"
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform lg:top-0.5 lg:w-4 lg:h-4 ${
-                        competitive ? "left-6 lg:left-5" : "left-1"
-                      }`}
-                    ></div>
-                  </button>
+                  <textarea
+                    placeholder={t('events.descriptionPlaceholder')}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={6}
+                    className="w-full bg-background rounded-xl px-4 py-3 border-2 border-white/10 focus:border-primary outline-none resize-none text-white placeholder:text-slate-500 text-base lg:px-3 lg:py-2.5 lg:text-sm lg:rows-5"
+                    autoFocus
+                  />
                 </div>
-              </div>
+              )}
             </div>
-          </div>
 
-          <div>
-            <h3 className="text-base font-bold mb-2 lg:text-sm lg:mb-1.5">
-              {t('events.description')}{" "}
-              <span className="text-slate-500 text-xs font-normal lg:text-[10px]">
-                ({t('common.optional')})
-              </span>
-            </h3>
-            <div className="bg-surface rounded-xl p-3 border border-white/10 lg:rounded-lg lg:p-2">
-              <textarea
-                placeholder={t('events.descriptionPlaceholder')}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full bg-transparent text-white placeholder:text-slate-500 outline-none resize-none text-sm lg:text-xs lg:rows-2"
-              />
+            {/* Navigation Buttons */}
+            <div className="p-6 border-t border-white/10 flex items-center justify-between gap-3 lg:p-4">
+              <button
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className="px-6 py-2.5 rounded-xl font-medium text-sm bg-white/5 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-colors lg:px-4 lg:py-2 lg:text-xs flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg lg:text-base">arrow_back</span>
+                {t('common.back')}
+              </button>
+              
+              {currentStep < totalSteps ? (
+                <button
+                  onClick={handleNext}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm bg-primary text-white hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center gap-2 lg:px-4 lg:py-2 lg:text-xs"
+                >
+                  {t('common.next')}
+                  <span className="material-symbols-outlined text-lg lg:text-base">arrow_forward</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreate}
+                  disabled={isLoading}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm bg-primary text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center gap-2 lg:px-4 lg:py-2 lg:text-xs"
+                >
+                  <span className="material-symbols-outlined text-lg lg:text-base">add_circle</span>
+                  {isLoading ? t('events.creating') : t('events.create')}
+                </button>
+              )}
             </div>
           </div>
-        </div>
         </div>
       </main>
-
-      <div className="p-3 bg-background border-t border-white/10 w-full lg:p-4">
-        <div className="lg:max-w-2xl lg:mx-auto lg:w-full space-y-2">
-          {error && (
-            <div className="p-2 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm lg:p-1.5 lg:text-xs">
-              {error}
-            </div>
-          )}
-          <button
-            onClick={handleCreate}
-            disabled={isLoading}
-            className="w-full h-12 bg-primary disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:h-10 lg:text-sm"
-          >
-            <span className="material-symbols-outlined lg:text-[18px]">add_circle</span>
-            {isLoading ? t('events.creating') : t('events.create')}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

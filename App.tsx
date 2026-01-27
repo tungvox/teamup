@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
           isFullWidthRoute ? "" : "lg:w-[calc(100%-4rem)] lg:ml-16"
         }`}
       >
-        <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full h-full">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full h-full">
           <Routes>
             {/* Onboarding Flow */}
             <Route path="/" element={<OnboardingLanding />} />
@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
               }
             />
           </Routes>
-        </main>
+        </div>
 
         {/* Bottom Navigation - shows on mobile/tablet */}
         {showBottomNav && (

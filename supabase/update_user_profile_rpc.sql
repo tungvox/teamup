@@ -27,6 +27,7 @@ BEGIN
                      END,
     stats          = CASE WHEN p_updates ? 'stats'           THEN (p_updates->'stats')::jsonb           ELSE stats          END,
     level          = CASE WHEN p_updates ? 'level'           THEN (p_updates->>'level')::INTEGER        ELSE level          END,
+    tier           = CASE WHEN p_updates ? 'tier'            THEN (p_updates->>'tier')::TEXT            ELSE tier           END,
     friends        = CASE
                       WHEN NOT (p_updates ? 'friends')       THEN friends
                       WHEN p_updates->'friends' IS NULL      THEN NULL

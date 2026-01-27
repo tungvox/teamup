@@ -13,6 +13,7 @@ export interface User {
     mvps: number;
   };
   level: number;
+  tier?: string; // Tier: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'master' | 'grandmaster' | 'challenger'
   friends: string[]; // Array of user IDs who are friends
   friendRequests: string[]; // Array of user IDs who sent friend requests
   createdAt: string;
