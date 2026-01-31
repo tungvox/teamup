@@ -119,6 +119,31 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['user_profiles']['Insert']>
       }
+      user_settings: {
+        Row: {
+          id: string
+          clerk_id: string
+          language: string
+          notification_settings: Json
+          theme: string | null
+          sport_filter: string | null
+          friends_events_only: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clerk_id: string
+          language?: string
+          notification_settings?: Json
+          theme?: string | null
+          sport_filter?: string | null
+          friends_events_only?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['user_settings']['Insert']>
+      }
       event_requests: {
         Row: {
           id: string

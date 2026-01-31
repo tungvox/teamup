@@ -5,6 +5,7 @@
 ### 1. Supabase Setup
 - [ ] Create Supabase project at https://supabase.com
 - [ ] Run SQL schema from `supabase/schema.sql` in SQL Editor
+- [ ] Run migrations directly in database: Supabase Dashboard → **SQL Editor** → New query → paste each file from `supabase/*.sql` (e.g. `add_user_settings.sql`, `add_friends_events_only_setting.sql`) → Run
 - [ ] Copy Project URL and anon key to `.env` file
 
 ### 2. Clerk Setup
