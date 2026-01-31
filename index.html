@@ -18,8 +18,8 @@
         theme: {
           extend: {
             colors: {
-              primary: '#0d7cf2',
-              'primary-hover': '#0b69d1',
+              primary: 'hsl(19 100% 48%)',
+              'primary-hover': 'hsl(19 100% 42%)',
               background: '#101922',
               surface: '#1C232B',
               'surface-light': '#ffffff',
@@ -62,6 +62,7 @@
         scrollbar-width: none;
       }
       .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined';
         font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       }
       /* Responsive base styles */
@@ -76,9 +77,162 @@
         width: 100%;
         height: 100%;
       }
+      /* Light theme overrides when data-theme="light" */
+      html[data-theme="light"] body {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      html[data-theme="light"] .bg-background,
+      html[data-theme="light"] .bg-background\/50,
+      html[data-theme="light"] .bg-background\/80,
+      html[data-theme="light"] .bg-background\/90,
+      html[data-theme="light"] .bg-background\/95 {
+        background-color: #f8fafc !important;
+      }
+      html[data-theme="light"] .bg-surface,
+      html[data-theme="light"] .bg-surface\/50,
+      html[data-theme="light"] .bg-surface\/95,
+      html[data-theme="light"] .bg-surface\/98 {
+        background-color: #f1f5f9 !important;
+      }
+      html[data-theme="light"] .text-white {
+        color: #0f172a;
+      }
+      html[data-theme="light"] .bg-primary .text-white,
+      html[data-theme="light"] .bg-primary.text-white,
+      html[data-theme="light"] .bg-yellow-500 .text-white,
+      html[data-theme="light"] .bg-yellow-500.text-white,
+      html[data-theme="light"] .bg-orange-500 .text-white,
+      html[data-theme="light"] .bg-orange-500.text-white,
+      html[data-theme="light"] .from-emerald-400 .text-white,
+      html[data-theme="light"] .from-emerald-400.text-white {
+        color: #fff !important;
+      }
+      html[data-theme="light"] .border-white\/5,
+      html[data-theme="light"] .border-white\/10,
+      html[data-theme="light"] .border-white\/20,
+      html[data-theme="light"] .border-white\/30,
+      html[data-theme="light"] .border-white\/40 {
+        border-color: rgba(0, 0, 0, 0.08);
+      }
+      html[data-theme="light"] .border-surface {
+        border-color: #e2e8f0;
+      }
+      html[data-theme="light"] .divide-white\/5 > * {
+        border-color: rgba(0, 0, 0, 0.08);
+      }
+      html[data-theme="light"] .text-slate-200 {
+        color: #475569;
+      }
+      html[data-theme="light"] .text-slate-300 {
+        color: #475569;
+      }
+      html[data-theme="light"] .text-slate-400 {
+        color: #64748b;
+      }
+      html[data-theme="light"] .text-slate-500 {
+        color: #64748b;
+      }
+      html[data-theme="light"] .text-slate-600 {
+        color: #475569;
+      }
+      html[data-theme="light"] .hover\:bg-white\/5:hover,
+      html[data-theme="light"] .hover\:bg-white\/10:hover {
+        background-color: rgba(0, 0, 0, 0.06) !important;
+      }
+      html[data-theme="light"] .bg-white\/5 {
+        background-color: rgba(0, 0, 0, 0.04);
+      }
+      html[data-theme="light"] .bg-white\/10 {
+        background-color: rgba(0, 0, 0, 0.06);
+      }
+      html[data-theme="light"] .bg-white\/20 {
+        background-color: rgba(0, 0, 0, 0.08);
+      }
+      html[data-theme="light"] .bg-slate-600,
+      html[data-theme="light"] .bg-slate-700 {
+        background-color: #cbd5e1 !important;
+      }
+      html[data-theme="light"] .bg-slate-800 {
+        background-color: #e2e8f0 !important;
+      }
+      html[data-theme="light"] .bg-slate-800\/60 {
+        background-color: rgba(226, 232, 240, 0.9) !important;
+      }
+      html[data-theme="light"] .bg-slate-600\/30 {
+        background-color: rgba(203, 213, 225, 0.5) !important;
+      }
+      html[data-theme="light"] .hover\:bg-slate-600:hover {
+        background-color: #94a3b8 !important;
+      }
+      html[data-theme="light"] .placeholder-slate-500::placeholder {
+        color: #64748b;
+      }
+      html[data-theme="light"] .selection\:bg-primary::selection,
+      html[data-theme="light"] .selection\:text-white::selection,
+      html[data-theme="light"] ::selection {
+        background-color: hsl(19 100% 48% / 0.3);
+        color: #0f172a;
+      }
+      html[data-theme="light"] .ring-surface,
+      html[data-theme="light"] .ring-surface\/98 {
+        --tw-ring-color: #f1f5f9;
+      }
+      html[data-theme="light"] .border-2.border-surface {
+        border-color: #e2e8f0;
+      }
+      html[data-theme="light"] .shadow-2xl {
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+      }
+      html[data-theme="light"] ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      html[data-theme="light"] .bg-surface-light\/50 {
+        background-color: rgba(248, 250, 252, 0.8) !important;
+      }
+      html[data-theme="light"] .min-h-screen.bg-background {
+        background-color: #f8fafc !important;
+      }
+      html[data-theme="light"] input::placeholder,
+      html[data-theme="light"] textarea::placeholder {
+        color: #64748b;
+      }
+      html[data-theme="light"] input,
+      html[data-theme="light"] textarea,
+      html[data-theme="light"] select {
+        color: #0f172a;
+      }
+      html[data-theme="light"] select option {
+        background: #f1f5f9;
+        color: #0f172a;
+      }
+      html[data-theme="light"] .bg-black\/60 {
+        background-color: rgba(0, 0, 0, 0.4);
+      }
+      html[data-theme="light"] .hover\:text-white:hover {
+        color: hsl(19 100% 48%);
+      }
     </style>
 </head>
   <body class="bg-background text-white font-display antialiased selection:bg-primary selection:text-white">
+    <script>
+      (function() {
+        var theme = localStorage.getItem('teamup_theme');
+        var effective = theme;
+        if (theme === 'auto') {
+          var hour = new Date().getHours();
+          effective = (hour >= 6 && hour < 18) ? 'light' : 'dark';
+        }
+        if (effective === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+          document.documentElement.removeAttribute('data-theme');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

@@ -17,7 +17,7 @@ interface LanguageContextType {
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
-  undefined
+  undefined,
 );
 
 const translations: Record<Language, Record<string, string>> = {
@@ -38,6 +38,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     "nav.home": "Home",
     "nav.myGames": "My Games",
+    "nav.create": "Create",
     "nav.messages": "Messages",
     "nav.profile": "Profile",
 
@@ -46,11 +47,17 @@ const translations: Record<Language, Record<string, string>> = {
     "home.calendar": "Calendar",
     "home.map": "Map",
     "home.backToCalendar": "Back to Calendar",
+    "home.friendsOnly": "Only show friend's events",
     "home.filterByLocation": "Filter by location",
+    "home.allSports": "All sports",
 
     // Settings
     "settings.title": "Settings",
     "settings.notifications": "Notification Settings",
+    "settings.theme": "Theme",
+    "settings.theme.dark": "Dark",
+    "settings.theme.light": "Light",
+    "settings.theme.auto": "Auto (by time)",
     "settings.language": "Language",
     "settings.language.english": "English",
     "settings.language.vietnamese": "Tiếng Việt",
@@ -93,7 +100,12 @@ const translations: Record<Language, Record<string, string>> = {
       "Add friends from your profile to invite them to events",
     "events.loadingMap": "Loading map...",
     "events.sportType": "Sport Type",
+    "events.sportTypeHint": "Choose the sport for your event",
+    "events.selectSport": "Select a sport",
     "events.eventName": "Event Name",
+    "events.eventNameHint": "Give your event a catchy name",
+    "events.eventNamePlaceholder": "e.g. Downtown Hoop Session",
+    "events.dateTimeHint": "When will your event take place?",
     "events.date": "Date",
     "events.time": "Time",
     "events.endTime": "End Time",
@@ -118,11 +130,25 @@ const translations: Record<Language, Record<string, string>> = {
     "events.totalSpots": "Total Spots",
     "events.remove": "Remove",
     "events.addEndTime": "+ End time",
+    "events.duration": "Duration",
+    "events.duration30min": "30 min",
+    "events.duration1hour": "1 hour",
+    "events.duration1_5hours": "1.5 hours",
+    "events.duration2hours": "2 hours",
+    "events.duration3hours": "3 hours",
+    "events.duration4hours": "4 hours",
+    "events.duration5hours": "5 hours",
+    "events.duration6hours": "6 hours",
+    "events.duration7hours": "7 hours",
+    "events.duration8hours": "8 hours",
+    "events.duration9hours": "9 hours",
+    "events.duration10hours": "10 hours",
     "events.eventDetails": "Event Details",
     "events.eventNotFound": "Event not found",
     "events.cannotInvitePast": "Cannot invite friends to past events",
     "events.cannotJoinPast": "Cannot join past events",
     "events.open": "Open",
+    "events.add": "Add",
     "events.eventCode": "Event Code",
     "events.directions": "Directions",
     "events.eventFee": "Event fee",
@@ -131,6 +157,8 @@ const translations: Record<Language, Record<string, string>> = {
     "events.spots": "spots",
     "events.spotOpen": "spot open",
     "events.spotsOpen": "spots open",
+    "events.inviteFriends": "Invite Friends",
+    "events.noFriendsToInvite": "No friends to invite",
     "events.allFriendsInvited":
       "All your friends are already in this event or have been invited",
     "events.allFriendsInEvent": "All your friends are already in this event",
@@ -141,6 +169,7 @@ const translations: Record<Language, Record<string, string>> = {
     "events.shareEventText": "Join me for {sport} on {date}",
     "events.logistics": "Logistics",
     "events.locationPlaceholder": "Search for a location or enter address...",
+    "events.locationHint": "Where will your event be held?",
     "events.competitiveDescription": "Only matching skill levels can join",
     "events.descriptionPlaceholder":
       "Add details about your event... (e.g. rules, what to bring, special instructions)",
@@ -150,7 +179,8 @@ const translations: Record<Language, Record<string, string>> = {
     "events.left": "left",
     "events.roster": "Roster",
     "events.eventCreated.gameOn": "Game On!",
-    "events.eventCreated.successMessage": "Your squad is ready to be assembled. Event created successfully!",
+    "events.eventCreated.successMessage":
+      "Your squad is ready to be assembled. Event created successfully!",
     "events.eventCreated.copyCode": "Copy code",
     "events.eventCreated.inviteCrew": "Invite your crew",
     "events.eventCreated.viewEventDetails": "View",
@@ -168,13 +198,16 @@ const translations: Record<Language, Record<string, string>> = {
     "events.invitations": "Invitations",
     "events.joinRequests": "Join Requests",
     "events.noJoinRequests": "No join requests",
-    "events.joinRequestsHint": "Events you've requested to join will appear here",
+    "events.joinRequestsHint":
+      "Events you've requested to join will appear here",
     "events.filter.myRequests": "My Requests",
     "events.filter.otherRequests": "Other Requests",
     "events.noMyJoinRequests": "No requests from you",
-    "events.myJoinRequestsHint": "Events you've requested to join will appear here",
+    "events.myJoinRequestsHint":
+      "Events you've requested to join will appear here",
     "events.noOtherJoinRequests": "No requests from others",
-    "events.otherJoinRequestsHint": "Requests to join your events will appear here",
+    "events.otherJoinRequestsHint":
+      "Requests to join your events will appear here",
     "events.requestedToJoin": "requested to join",
     "events.requests": "requests",
     "events.noUpcoming": "No upcoming events",
@@ -209,7 +242,8 @@ const translations: Record<Language, Record<string, string>> = {
     "onboarding.loadingProfile": "Loading your profile...",
     "onboarding.redirecting": "Redirecting...",
     "onboarding.youreIn": "You're In!",
-    "onboarding.accountCreatedSuccess": "Your account has been created successfully. Get ready to find your squad.",
+    "onboarding.accountCreatedSuccess":
+      "Your account has been created successfully. Get ready to find your squad.",
     "onboarding.new": "New",
     "onboarding.proLeagueAccess": "Pro League Access",
     "onboarding.unlockedForProfile": "Unlocked for your profile",
@@ -217,12 +251,14 @@ const translations: Record<Language, Record<string, string>> = {
     "onboarding.editProfile": "Edit Profile",
     "onboarding.step2Of4": "Step 2 of 4",
     "onboarding.whereDoYouPlay": "Where do you play?",
-    "onboarding.setHomeBase": "Set your home base to find teams, tournaments, and matches near you.",
+    "onboarding.setHomeBase":
+      "Set your home base to find teams, tournaments, and matches near you.",
     "onboarding.selectCity": "Select City",
     "onboarding.confirmLocation": "Confirm Location",
     "onboarding.letsGetYouInGame": "Let's get you",
     "onboarding.inTheGame": "in the game.",
-    "onboarding.createAccountToStart": "Create your account to start connecting.",
+    "onboarding.createAccountToStart":
+      "Create your account to start connecting.",
 
     // Date & Time
     "date.days.sunday": "Sunday",
@@ -271,6 +307,18 @@ const translations: Record<Language, Record<string, string>> = {
     // Profile
     "profile.noRatings": "No ratings yet",
     "profile.notEnoughRatings": "Not enough ratings",
+    "profile.viewProfile": "View profile",
+    "profile.sendFriendRequest": "Send friend request",
+    "profile.requestSent": "Request sent",
+    "profile.cancelFriendRequest": "Cancel friend request",
+    "profile.unfriend": "Unfriend",
+    "profile.friendRequests": "Friend Requests",
+    "profile.friends": "Friends",
+    "profile.removeFriend": "Remove friend",
+    "profile.alreadyFriend": "Friend",
+    "profile.accept": "Accept",
+    "profile.deny": "Deny",
+    "profile.failedToDenyFriendRequest": "Failed to deny friend request",
   },
   vi: {
     // Common
@@ -290,6 +338,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     "nav.home": "Trang chủ",
     "nav.myGames": "Sự kiện của tôi",
+    "nav.create": "Tạo",
     "nav.messages": "Tin nhắn",
     "nav.profile": "Hồ sơ",
 
@@ -297,12 +346,18 @@ const translations: Record<Language, Record<string, string>> = {
     "home.findYourGame": "Tìm sự kiện",
     "home.calendar": "Lịch",
     "home.filterByLocation": "Lọc theo địa điểm",
+    "home.allSports": "Tất cả môn thể thao",
     "home.map": "Bản đồ",
     "home.backToCalendar": "Quay lại lịch",
+    "home.friendsOnly": "Chỉ hiển thị sự kiện của bạn bè",
 
     // Settings
     "settings.title": "Cài đặt",
     "settings.notifications": "Cài đặt thông báo",
+    "settings.theme": "Giao diện",
+    "settings.theme.dark": "Tối",
+    "settings.theme.light": "Sáng",
+    "settings.theme.auto": "Tự động (theo giờ)",
     "settings.language": "Ngôn ngữ",
     "settings.language.english": "English",
     "settings.language.vietnamese": "Tiếng Việt",
@@ -345,7 +400,12 @@ const translations: Record<Language, Record<string, string>> = {
       "Thêm bạn bè từ hồ sơ của bạn để mời họ tham gia sự kiện",
     "events.loadingMap": "Đang tải bản đồ...",
     "events.sportType": "Loại thể thao",
+    "events.sportTypeHint": "Chọn môn thể thao cho sự kiện của bạn",
+    "events.selectSport": "Chọn môn thể thao",
     "events.eventName": "Tên sự kiện",
+    "events.eventNameHint": "Đặt tên bắt tai cho sự kiện của bạn",
+    "events.eventNamePlaceholder": "VD: Buổi chơi bóng rổ Downtown",
+    "events.dateTimeHint": "Sự kiện diễn ra khi nào?",
     "events.date": "Ngày",
     "events.time": "Giờ",
     "events.endTime": "Giờ kết thúc",
@@ -371,6 +431,18 @@ const translations: Record<Language, Record<string, string>> = {
     "events.remove": "Xóa",
     "events.addEndTime": "+ Giờ kết thúc",
     "events.duration": "Thời lượng",
+    "events.duration30min": "30 phút",
+    "events.duration1hour": "1 giờ",
+    "events.duration1_5hours": "1,5 giờ",
+    "events.duration2hours": "2 giờ",
+    "events.duration3hours": "3 giờ",
+    "events.duration4hours": "4 giờ",
+    "events.duration5hours": "5 giờ",
+    "events.duration6hours": "6 giờ",
+    "events.duration7hours": "7 giờ",
+    "events.duration8hours": "8 giờ",
+    "events.duration9hours": "9 giờ",
+    "events.duration10hours": "10 giờ",
     "events.eventDetails": "Chi tiết sự kiện",
     "events.eventNotFound": "Không tìm thấy sự kiện",
     "events.cannotInvitePast": "Không thể mời bạn bè tham gia sự kiện đã qua",
@@ -387,6 +459,7 @@ const translations: Record<Language, Record<string, string>> = {
     "events.pendingRequests": "Yêu cầu đang chờ",
     "events.approved": "Đã chấp nhận",
     "events.inviteFriends": "Mời bạn bè",
+    "events.noFriendsToInvite": "Không có bạn bè để mời",
     "events.messageAll": "Nhắn tất cả",
     "events.requested": "Đã yêu cầu",
     "events.eventFull": "Sự kiện đã đầy",
@@ -400,7 +473,8 @@ const translations: Record<Language, Record<string, string>> = {
     "events.shareCode":
       "Chia sẻ mã này với người khác để họ tìm thấy sự kiện của bạn",
     "events.eventCreated.gameOn": "Bắt đầu thôi!",
-    "events.eventCreated.successMessage": "Đội của bạn đã sẵn sàng. Sự kiện đã được tạo thành công!",
+    "events.eventCreated.successMessage":
+      "Đội của bạn đã sẵn sàng. Sự kiện đã được tạo thành công!",
     "events.eventCreated.copyCode": "Sao chép mã",
     "events.eventCreated.inviteCrew": "Mời đội của bạn",
     "events.eventCreated.viewEventDetails": "Xem",
@@ -458,17 +532,21 @@ const translations: Record<Language, Record<string, string>> = {
     "events.invitations": "Lời mời",
     "events.joinRequests": "Yêu cầu tham gia",
     "events.noJoinRequests": "Không có yêu cầu tham gia",
-    "events.joinRequestsHint": "Các sự kiện bạn đã yêu cầu tham gia sẽ xuất hiện ở đây",
+    "events.joinRequestsHint":
+      "Các sự kiện bạn đã yêu cầu tham gia sẽ xuất hiện ở đây",
     "events.filter.myRequests": "Yêu cầu của tôi",
     "events.filter.otherRequests": "Yêu cầu từ người khác",
     "events.noMyJoinRequests": "Không có yêu cầu của bạn",
-    "events.myJoinRequestsHint": "Các sự kiện bạn đã yêu cầu tham gia sẽ xuất hiện ở đây",
+    "events.myJoinRequestsHint":
+      "Các sự kiện bạn đã yêu cầu tham gia sẽ xuất hiện ở đây",
     "events.noOtherJoinRequests": "Không có yêu cầu từ người khác",
-    "events.otherJoinRequestsHint": "Yêu cầu tham gia sự kiện của bạn sẽ xuất hiện ở đây",
+    "events.otherJoinRequestsHint":
+      "Yêu cầu tham gia sự kiện của bạn sẽ xuất hiện ở đây",
     "events.requestedToJoin": "đã yêu cầu tham gia",
     "events.requests": "yêu cầu",
     "events.currentRoster": "Danh sách hiện tại",
     "events.open": "Mở",
+    "events.add": "Thêm",
     "events.eventCode": "Mã sự kiện",
     "events.directions": "Chỉ đường",
     "events.eventFee": "Phí sự kiện",
@@ -488,6 +566,7 @@ const translations: Record<Language, Record<string, string>> = {
     "events.shareEventText": "Tham gia cùng tôi cho {sport} vào {date}",
     "events.logistics": "Hậu cần",
     "events.locationPlaceholder": "Tìm kiếm địa điểm hoặc nhập địa chỉ...",
+    "events.locationHint": "Sự kiện diễn ra ở đâu?",
     "events.competitiveDescription":
       "Chỉ những người có trình độ phù hợp mới có thể tham gia",
     "events.descriptionPlaceholder":
@@ -527,7 +606,8 @@ const translations: Record<Language, Record<string, string>> = {
     "onboarding.loadingProfile": "Đang tải hồ sơ của bạn...",
     "onboarding.redirecting": "Đang chuyển hướng...",
     "onboarding.youreIn": "Bạn đã tham gia!",
-    "onboarding.accountCreatedSuccess": "Tài khoản của bạn đã được tạo thành công. Hãy sẵn sàng tìm đội của bạn.",
+    "onboarding.accountCreatedSuccess":
+      "Tài khoản của bạn đã được tạo thành công. Hãy sẵn sàng tìm đội của bạn.",
     "onboarding.new": "Mới",
     "onboarding.proLeagueAccess": "Quyền truy cập Pro League",
     "onboarding.unlockedForProfile": "Đã mở khóa cho hồ sơ của bạn",
@@ -535,12 +615,14 @@ const translations: Record<Language, Record<string, string>> = {
     "onboarding.editProfile": "Chỉnh sửa hồ sơ",
     "onboarding.step2Of4": "Bước 2/4",
     "onboarding.whereDoYouPlay": "Bạn chơi ở đâu?",
-    "onboarding.setHomeBase": "Đặt căn cứ của bạn để tìm đội, giải đấu và trận đấu gần bạn.",
+    "onboarding.setHomeBase":
+      "Đặt căn cứ của bạn để tìm đội, giải đấu và trận đấu gần bạn.",
     "onboarding.selectCity": "Chọn thành phố",
     "onboarding.confirmLocation": "Xác nhận vị trí",
     "onboarding.letsGetYouInGame": "Hãy đưa bạn",
     "onboarding.inTheGame": "vào trận đấu.",
-    "onboarding.createAccountToStart": "Tạo tài khoản của bạn để bắt đầu kết nối.",
+    "onboarding.createAccountToStart":
+      "Tạo tài khoản của bạn để bắt đầu kết nối.",
 
     // Profile
     "profile.noFriends":
@@ -557,6 +639,16 @@ const translations: Record<Language, Record<string, string>> = {
     "profile.removeFriendConfirm": "Xóa {name} khỏi danh sách bạn bè của bạn?",
     "profile.failedToRemoveFriend": "Không thể xóa bạn bè. Vui lòng thử lại.",
     "profile.addFriend": "Thêm bạn bè",
+    "profile.viewProfile": "Xem hồ sơ",
+    "profile.sendFriendRequest": "Gửi lời mời kết bạn",
+    "profile.requestSent": "Đã gửi lời mời",
+    "profile.cancelFriendRequest": "Hủy lời mời kết bạn",
+    "profile.unfriend": "Hủy kết bạn",
+    "profile.friendRequests": "Lời mời kết bạn",
+    "profile.alreadyFriend": "Bạn bè",
+    "profile.accept": "Chấp nhận",
+    "profile.deny": "Từ chối",
+    "profile.failedToDenyFriendRequest": "Không thể từ chối lời mời kết bạn",
     "profile.logout": "Đăng xuất",
     "profile.enterUserId": "Vui lòng nhập ID người dùng",
     "profile.invalidUserId":

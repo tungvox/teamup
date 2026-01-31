@@ -9,7 +9,13 @@ import {
   Login,
   AuthSelection,
 } from "./pages/Onboarding";
-import { Home, MyEvents, Messages, Profile } from "./pages/Dashboard";
+import {
+  Home,
+  MyEvents,
+  Messages,
+  Profile,
+  UserProfileView,
+} from "./pages/Dashboard";
 import {
   EventDetails,
   CreateEvent,
@@ -29,6 +35,7 @@ import { EventProvider } from "./context/EventContext";
 import { MessageProvider } from "./context/MessageContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { LanguageProvider } from "./context/LanguageContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { clerkPubKey } from "./lib/clerk";
 
 const AppContent: React.FC = () => {
@@ -62,7 +69,7 @@ const AppContent: React.FC = () => {
       {/* Responsive container - full width on larger screens */}
       <div
         className={`w-full h-full bg-background shadow-2xl min-h-screen flex flex-col ${
-          isFullWidthRoute ? "" : "lg:w-[calc(100%-4rem)] lg:ml-16"
+          isFullWidthRoute ? "" : "lg:w-[calc(100%-5rem)] lg:ml-20"
         }`}
       >
         <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar w-full h-full">
@@ -105,6 +112,14 @@ const AppContent: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile/user/:id"
+              element={
+                <ProtectedRoute>
+                  <UserProfileView />
                 </ProtectedRoute>
               }
             />
@@ -208,7 +223,8 @@ const App: React.FC = () => {
     <ClerkProvider publishableKey={clerkPubKey}>
       <HashRouter>
         <AuthProvider>
-          <LanguageProvider>
+          <ThemeProvider>
+            <LanguageProvider>
             <EventProvider>
               <MessageProvider>
                 <SettingsProvider>
@@ -217,6 +233,7 @@ const App: React.FC = () => {
               </MessageProvider>
             </EventProvider>
           </LanguageProvider>
+          </ThemeProvider>
         </AuthProvider>
       </HashRouter>
     </ClerkProvider>

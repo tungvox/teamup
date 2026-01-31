@@ -5,6 +5,12 @@ import { logger } from '../utils/logger';
 
 const SETTINGS_KEY = 'teamup_notification_settings';
 const LANGUAGE_KEY = 'teamup_language';
+const SPORT_FILTER_KEY = 'teamup_sport_filter';
+const THEME_KEY = 'teamup_theme';
+const FRIENDS_EVENTS_ONLY_KEY = 'teamup_friends_events_only';
+
+export type Theme = 'dark' | 'light';
+export type ThemeMode = 'dark' | 'light' | 'auto';
 
 export const settingsService = {
   async getNotificationSettings(clerkId: string): Promise<NotificationSettings | null> {
@@ -135,6 +141,177 @@ export const settingsService = {
       logger.error('Error in saveLanguage:', err);
       // Fallback to localStorage
       localStorage.setItem(LANGUAGE_KEY, language);
+    }
+  },
+
+  async getSportFilter(clerkId: string): Promise<string> {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('sport_filter')
+        .eq('clerk_id', clerkId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          const saved = localStorage.getItem(SPORT_FILTER_KEY);
+          return saved ?? '';
+        }
+        logger.error('Error fetching sport filter:', error);
+      }
+
+      if (data?.sport_filter != null) {
+        return data.sport_filter;
+      }
+
+      const saved = localStorage.getItem(SPORT_FILTER_KEY);
+      return saved ?? '';
+    } catch (err) {
+      logger.error('Error in getSportFilter:', err);
+      const saved = localStorage.getItem(SPORT_FILTER_KEY);
+      return saved ?? '';
+    }
+  },
+
+  async saveSportFilter(clerkId: string, sportFilter: string): Promise<void> {
+    try {
+      const { error: updateError } = await supabase
+        .from('user_settings')
+        .update({ sport_filter: sportFilter })
+        .eq('clerk_id', clerkId);
+
+      if (updateError) {
+        const { error: insertError } = await supabase
+          .from('user_settings')
+          .insert({
+            clerk_id: clerkId,
+            sport_filter: sportFilter,
+          });
+
+        if (insertError) {
+          logger.error('Error saving sport filter:', insertError);
+        }
+      }
+
+      localStorage.setItem(SPORT_FILTER_KEY, sportFilter);
+    } catch (err) {
+      logger.error('Error in saveSportFilter:', err);
+      localStorage.setItem(SPORT_FILTER_KEY, sportFilter);
+    }
+  },
+
+  async getTheme(clerkId: string): Promise<ThemeMode> {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('theme')
+        .eq('clerk_id', clerkId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          const saved = localStorage.getItem(THEME_KEY);
+          if (saved === 'dark' || saved === 'light' || saved === 'auto') return saved as ThemeMode;
+          return 'dark';
+        }
+        logger.error('Error fetching theme:', error);
+      }
+
+      if (data?.theme === 'dark' || data?.theme === 'light' || data?.theme === 'auto') {
+        return data.theme as ThemeMode;
+      }
+
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'dark' || saved === 'light' || saved === 'auto') return saved as ThemeMode;
+      return 'dark';
+    } catch (err) {
+      logger.error('Error in getTheme:', err);
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'dark' || saved === 'light' || saved === 'auto') return saved as ThemeMode;
+      return 'dark';
+    }
+  },
+
+  async saveTheme(clerkId: string, theme: ThemeMode): Promise<void> {
+    try {
+      const { error: updateError } = await supabase
+        .from('user_settings')
+        .update({ theme })
+        .eq('clerk_id', clerkId);
+
+      if (updateError) {
+        const { error: insertError } = await supabase
+          .from('user_settings')
+          .insert({
+            clerk_id: clerkId,
+            theme,
+          });
+
+        if (insertError) {
+          logger.error('Error saving theme:', insertError);
+        }
+      }
+
+      localStorage.setItem(THEME_KEY, theme);
+    } catch (err) {
+      logger.error('Error in saveTheme:', err);
+      localStorage.setItem(THEME_KEY, theme);
+    }
+  },
+
+  async getFriendsEventsOnly(clerkId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('friends_events_only')
+        .eq('clerk_id', clerkId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          const saved = localStorage.getItem(FRIENDS_EVENTS_ONLY_KEY);
+          return saved === 'true';
+        }
+        logger.error('Error fetching friends_events_only:', error);
+      }
+
+      if (typeof data?.friends_events_only === 'boolean') {
+        return data.friends_events_only;
+      }
+
+      const saved = localStorage.getItem(FRIENDS_EVENTS_ONLY_KEY);
+      return saved === 'true';
+    } catch (err) {
+      logger.error('Error in getFriendsEventsOnly:', err);
+      const saved = localStorage.getItem(FRIENDS_EVENTS_ONLY_KEY);
+      return saved === 'true';
+    }
+  },
+
+  async saveFriendsEventsOnly(clerkId: string, value: boolean): Promise<void> {
+    try {
+      const { error: updateError } = await supabase
+        .from('user_settings')
+        .update({ friends_events_only: value })
+        .eq('clerk_id', clerkId);
+
+      if (updateError) {
+        const { error: insertError } = await supabase
+          .from('user_settings')
+          .insert({
+            clerk_id: clerkId,
+            friends_events_only: value,
+          });
+
+        if (insertError) {
+          logger.error('Error saving friends_events_only:', insertError);
+        }
+      }
+
+      localStorage.setItem(FRIENDS_EVENTS_ONLY_KEY, String(value));
+    } catch (err) {
+      logger.error('Error in saveFriendsEventsOnly:', err);
+      localStorage.setItem(FRIENDS_EVENTS_ONLY_KEY, String(value));
     }
   },
 };

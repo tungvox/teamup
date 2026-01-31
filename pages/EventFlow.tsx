@@ -6,8 +6,10 @@ import { useEvents } from "../context/EventContext";
 import { useAuth } from "../context/AuthContext";
 import { useMessages } from "../context/MessageContext";
 import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
 import { sportsService } from "../services/supabaseService";
 import { userService } from "../services/userService";
+import { settingsService } from "../services/settingsService";
 import { ratingService } from "../services/ratings/ratingService";
 import { Event, User } from "../types";
 
@@ -21,21 +23,23 @@ const LocationPicker = lazy(() =>
 interface Sport {
   id: string;
   name: string;
+  name_vi?: string | null;
   icon: string;
 }
 
 export const CreateEvent: React.FC = () => {
   const navigate = useNavigate();
   const { createEvent } = useEvents();
-  useAuth();
-  const { t } = useLanguage();
-  
+  const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
+
   // Step management
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 6;
   
   const [title, setTitle] = useState("");
-  const [sport, setSport] = useState("Tennis");
+  const [sport, setSport] = useState("");
   const [sports, setSports] = useState<Sport[]>([]);
   const [sportsLoading, setSportsLoading] = useState(true);
   const [date, setDate] = useState("");
@@ -90,10 +94,6 @@ export const CreateEvent: React.FC = () => {
       try {
         const sportsData = await sportsService.getAllSports();
         setSports(sportsData);
-        // Set default sport to first sport (Tennis)
-        if (sportsData.length > 0 && sport === "Tennis") {
-          setSport(sportsData[0].name);
-        }
       } catch (err) {
         console.error("Error loading sports:", err);
         // Fallback to default sports
@@ -108,6 +108,22 @@ export const CreateEvent: React.FC = () => {
     };
     loadSports();
   }, []);
+
+  // Load saved sport filter (synced with Home / My Events)
+  useEffect(() => {
+    const loadSavedSport = async () => {
+      const saved = user?.id
+        ? await settingsService.getSportFilter(user.id)
+        : localStorage.getItem("teamup_sport_filter");
+      const value = saved ?? "";
+      if (value && sports.some((s) => s.name === value)) {
+        setSport(value);
+      }
+    };
+    if (sports.length > 0) {
+      loadSavedSport();
+    }
+  }, [user?.id, sports.length]);
 
   const getSportIcon = (sportName: string) => {
     const sport = sports.find((s) => s.name === sportName);
@@ -290,36 +306,39 @@ export const CreateEvent: React.FC = () => {
                       </span>
                     </div>
                     <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.sportType')}</h2>
-                    <p className="text-sm text-slate-400 lg:text-xs">Choose the sport for your event</p>
+                    <p className="text-sm text-slate-400 lg:text-xs">{t('events.sportTypeHint')}</p>
                   </div>
           {sportsLoading ? (
-            <div className="flex gap-3 overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-white/10 text-slate-400 animate-pulse">
-                <span className="material-symbols-outlined text-[20px]">
-                  sports_tennis
-                </span>
-                <span className="font-medium">{t('common.loading')}</span>
-              </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface border border-white/10 text-slate-400 animate-pulse w-full">
+              <span className="material-symbols-outlined text-[20px]">sports_tennis</span>
+              <span className="font-medium">{t('common.loading')}</span>
             </div>
           ) : (
-            <div className="flex gap-3 overflow-x-auto no-scrollbar lg:gap-2">
-              {sports.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSport(s.name)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg shrink-0 transition-all lg:px-3 lg:py-1.5 lg:gap-1.5 ${
-                    sport === s.name
-                      ? "bg-primary text-white shadow-primary/20"
-                      : "bg-surface border border-white/10 text-slate-400"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[20px] lg:text-[18px]">
-                    {s.icon || getSportIcon(s.name)}
-                  </span>
-                  <span className="font-medium text-sm lg:text-xs">{s.name}</span>
-                </button>
-              ))}
-            </div>
+            <select
+              value={sport}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSport(value);
+                if (user?.id) {
+                  settingsService.saveSportFilter(user.id, value).catch((err) =>
+                    console.error("Failed to save sport filter:", err)
+                  );
+                } else {
+                  localStorage.setItem("teamup_sport_filter", value);
+                }
+              }}
+              className="w-full bg-background rounded-xl px-4 py-3 outline-none border-2 border-white/10 focus:border-primary transition-colors text-white text-base lg:px-3 lg:py-2.5 lg:text-sm font-medium"
+            >
+              <option value="">{t("events.selectSport")}</option>
+              {sports.map((s) => {
+                const displayName = language === "vi" && s.name_vi ? s.name_vi : s.name;
+                return (
+                  <option key={s.id} value={s.name}>
+                    {displayName}
+                  </option>
+                );
+              })}
+            </select>
           )}
                 </div>
               )}
@@ -334,12 +353,12 @@ export const CreateEvent: React.FC = () => {
                       </span>
                     </div>
                     <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.eventName')}</h2>
-                    <p className="text-sm text-slate-400 lg:text-xs">Give your event a catchy name</p>
+                    <p className="text-sm text-slate-400 lg:text-xs">{t('events.eventNameHint')}</p>
                   </div>
                   <div>
                     <input
                       type="text"
-                      placeholder="e.g. Downtown Hoop Session"
+                      placeholder={t('events.eventNamePlaceholder')}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full bg-background rounded-xl px-4 py-3 outline-none border-2 border-white/10 focus:border-primary transition-colors text-white text-base lg:px-3 lg:py-2.5 lg:text-sm"
@@ -359,7 +378,7 @@ export const CreateEvent: React.FC = () => {
                       </span>
                     </div>
                     <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.date')} & {t('events.time')}</h2>
-                    <p className="text-sm text-slate-400 lg:text-xs">When will your event take place?</p>
+                    <p className="text-sm text-slate-400 lg:text-xs">{t('events.dateTimeHint')}</p>
                   </div>
 
                   <div className="bg-background rounded-xl overflow-hidden border border-white/10 divide-y divide-white/5 lg:rounded-lg">
@@ -407,9 +426,13 @@ export const CreateEvent: React.FC = () => {
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     min={new Date().toISOString().split("T")[0]}
-                    className="bg-transparent text-transparent font-medium outline-none text-sm lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:text-transparent [&::-webkit-datetime-edit-year-field]:text-transparent [&::-webkit-datetime-edit-month-field]:text-transparent [&::-webkit-datetime-edit-day-field]:text-transparent"
+                    className={`bg-transparent text-transparent font-medium outline-none text-sm lg:text-xs [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:text-transparent [&::-webkit-datetime-edit-year-field]:text-transparent [&::-webkit-datetime-edit-month-field]:text-transparent [&::-webkit-datetime-edit-day-field]:text-transparent ${
+                      theme === "light"
+                        ? ""
+                        : "[&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0"
+                    }`}
                     style={{
-                      colorScheme: "dark",
+                      colorScheme: theme === "light" ? "light" : "dark",
                     }}
                   />
                 </div>
@@ -445,9 +468,13 @@ export const CreateEvent: React.FC = () => {
                         );
                       }
                     }}
-                    className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                    className={`px-2 py-1 rounded text-sm border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
+                      theme === "light"
+                        ? "bg-slate-200/80 text-slate-900 [&::-webkit-calendar-picker-indicator]:opacity-70"
+                        : "bg-white/5 text-white [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0"
+                    }`}
                     style={{
-                      colorScheme: "dark",
+                      colorScheme: theme === "light" ? "light" : "dark",
                     }}
                   />
                   {showEndTime && (
@@ -455,9 +482,13 @@ export const CreateEvent: React.FC = () => {
                       <span className="text-slate-500 text-sm lg:text-xs">to</span>
                       <input
                         type="time"
-                        className="bg-white/5 px-2 py-1 rounded text-sm text-white border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        className={`px-2 py-1 rounded text-sm border-none outline-none lg:px-1.5 lg:py-0.5 lg:text-xs [&::-webkit-calendar-picker-indicator]:cursor-pointer ${
+                          theme === "light"
+                            ? "bg-slate-200/80 text-slate-900 [&::-webkit-calendar-picker-indicator]:opacity-70"
+                            : "bg-white/5 text-white [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0"
+                        }`}
                         style={{
-                          colorScheme: "dark",
+                          colorScheme: theme === "light" ? "light" : "dark",
                         }}
                         value={endTime}
                         onChange={(e) => {
@@ -555,40 +586,40 @@ export const CreateEvent: React.FC = () => {
                       className="bg-white/5 px-3 py-1 rounded text-sm text-white border-none outline-none lg:px-2 lg:py-0.5 lg:text-xs [&>option]:text-black [&>option]:bg-white"
                     >
                       <option value={30} className="text-black">
-                        30 min
+                        {t("events.duration30min")}
                       </option>
                       <option value={60} className="text-black">
-                        1 hour
+                        {t("events.duration1hour")}
                       </option>
                       <option value={90} className="text-black">
-                        1.5 hours
+                        {t("events.duration1_5hours")}
                       </option>
                       <option value={120} className="text-black">
-                        2 hours
+                        {t("events.duration2hours")}
                       </option>
                       <option value={180} className="text-black">
-                        3 hours
+                        {t("events.duration3hours")}
                       </option>
                       <option value={240} className="text-black">
-                        4 hours
+                        {t("events.duration4hours")}
                       </option>
                       <option value={300} className="text-black">
-                        5 hours
+                        {t("events.duration5hours")}
                       </option>
                       <option value={360} className="text-black">
-                        6 hours
+                        {t("events.duration6hours")}
                       </option>
                       <option value={420} className="text-black">
-                        7 hours
+                        {t("events.duration7hours")}
                       </option>
                       <option value={480} className="text-black">
-                        8 hours
+                        {t("events.duration8hours")}
                       </option>
                       <option value={540} className="text-black">
-                        9 hours
+                        {t("events.duration9hours")}
                       </option>
                       <option value={600} className="text-black">
-                        10 hours
+                        {t("events.duration10hours")}
                       </option>
                     </select>
                   </div>
@@ -608,7 +639,7 @@ export const CreateEvent: React.FC = () => {
                       </span>
                     </div>
                     <h2 className="text-xl font-bold mb-2 lg:text-lg">{t('events.location')}</h2>
-                    <p className="text-sm text-slate-400 lg:text-xs">Where will your event be held?</p>
+                    <p className="text-sm text-slate-400 lg:text-xs">{t("events.locationHint")}</p>
                   </div>
                   <Suspense
                     fallback={
@@ -896,12 +927,15 @@ export const CreateEvent: React.FC = () => {
 export const EventCreated: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
   const { getEvent, events } = useEvents();
+  const isLight = theme === "light";
   const [event, setEvent] = useState<Event | null>(
     (location.state as any)?.event || null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [sports, setSports] = useState<Sport[]>([]);
 
   useEffect(() => {
     const eventId = (location.state as any)?.eventId;
@@ -937,7 +971,23 @@ export const EventCreated: React.FC = () => {
     }
   }, [location.state, getEvent, events]);
 
+  useEffect(() => {
+    let cancelled = false;
+    sportsService.getAllSports().then((list) => {
+      if (!cancelled) setSports(list);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const spotsLeft = event ? event.maxPlayers - event.currentPlayers : 0;
+
+  const sportDisplayName =
+    event?.sport && sports.length > 0
+      ? (() => {
+          const s = sports.find((sp) => sp.name === event.sport);
+          return language === "vi" && s?.name_vi ? s.name_vi : event.sport;
+        })()
+      : event?.sport ?? "";
 
   const formatTime = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(":");
@@ -993,7 +1043,7 @@ export const EventCreated: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col h-screen bg-background justify-center items-center">
-        <div className="text-white">{t('common.loading')}</div>
+        <div className={isLight ? "text-slate-700" : "text-white"}>{t('common.loading')}</div>
       </div>
     );
   }
@@ -1001,7 +1051,7 @@ export const EventCreated: React.FC = () => {
   if (!event) {
     return (
       <div className="flex flex-col h-screen bg-background justify-center items-center">
-        <div className="text-white">{t('events.eventNotFound')}</div>
+        <div className={isLight ? "text-slate-700" : "text-white"}>{t('events.eventNotFound')}</div>
       </div>
     );
   }
@@ -1010,19 +1060,19 @@ export const EventCreated: React.FC = () => {
     <div className="flex flex-col h-screen bg-background justify-between pb-10 pt-10 px-6 lg:pb-4 lg:pt-4 lg:px-8 xl:pb-6 xl:pt-6">
       <div className="lg:max-w-3xl lg:mx-auto lg:w-full">
       <div className="flex flex-col items-center text-center lg:mb-4">
-        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative lg:w-10 lg:h-10 lg:mb-2 xl:w-12 xl:h-12 xl:mb-2.5">
-          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
-          <span className="material-symbols-outlined text-4xl lg:text-xl xl:text-2xl">
+        <div className="w-20 h-20 bg-gradient-to-br from-primary to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 mb-6 relative overflow-hidden lg:w-16 lg:h-16 lg:mb-2 xl:w-20 xl:h-20 xl:mb-2.5">
+          <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full animate-pulse" aria-hidden />
+          <span className="material-symbols-outlined text-4xl text-white drop-shadow-sm relative z-10 lg:text-2xl xl:text-3xl">
             check_circle
           </span>
         </div>
-        <h1 className="text-4xl font-extrabold mb-2 lg:text-lg lg:mb-0.5 xl:text-xl xl:mb-1">{t('events.eventCreated.gameOn')}</h1>
-        <p className="text-slate-400 mb-4 lg:text-xs lg:mb-2 xl:text-xs xl:mb-2.5">
+        <h1 className={`text-4xl font-extrabold mb-2 lg:text-lg lg:mb-0.5 xl:text-xl xl:mb-1 ${isLight ? "text-slate-900" : "text-white"}`}>{t('events.eventCreated.gameOn')}</h1>
+        <p className={`mb-4 lg:text-xs lg:mb-2 xl:text-xs xl:mb-2.5 ${isLight ? "text-slate-600" : "text-slate-400"}`}>
           {t('events.eventCreated.successMessage')}
         </p>
         {event?.code && (
-          <div className="bg-primary/10 border-2 border-primary/30 rounded-xl px-6 py-4 mb-4 lg:px-2.5 lg:py-1.5 lg:mb-2 lg:rounded-lg lg:border lg:border-primary/30 xl:px-3 xl:py-2 xl:mb-2.5">
-          <p className="text-xs text-slate-400 mb-2 lg:text-[9px] lg:mb-0.5 xl:text-[10px] xl:mb-1">{t('events.eventCode')}</p>
+          <div className={`border-2 rounded-xl px-6 py-4 mb-4 lg:px-2.5 lg:py-1.5 lg:mb-2 lg:rounded-lg xl:px-3 xl:py-2 xl:mb-2.5 ${isLight ? "bg-amber-50/80 border-amber-300/60" : "bg-primary/10 border-primary/30 lg:border"}`}>
+          <p className={`text-xs mb-2 lg:text-[9px] lg:mb-0.5 xl:text-[10px] xl:mb-1 ${isLight ? "text-slate-600" : "text-slate-400"}`}>{t('events.eventCode')}</p>
           <div className="flex items-center gap-3 lg:gap-1.5 xl:gap-2">
             <code className="text-2xl font-bold text-primary tracking-wider lg:text-base xl:text-lg">
               {event.code}
@@ -1030,9 +1080,8 @@ export const EventCreated: React.FC = () => {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(event.code);
-                // You could add a toast notification here
               }}
-              className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 transition-colors lg:p-0.5 lg:rounded-md xl:p-1"
+              className={`p-2 rounded-lg transition-colors lg:p-0.5 lg:rounded-md xl:p-1 ${isLight ? "bg-amber-200/80 hover:bg-amber-300/80 text-amber-900" : "bg-primary/20 hover:bg-primary/30"}`}
               title={t('events.eventCreated.copyCode')}
             >
               <span className="material-symbols-outlined text-sm lg:text-xs xl:text-xs">
@@ -1040,14 +1089,14 @@ export const EventCreated: React.FC = () => {
               </span>
             </button>
           </div>
-          <p className="text-xs text-slate-500 mt-2 lg:text-[9px] lg:mt-0.5 xl:text-[10px] xl:mt-1">
+          <p className={`text-xs mt-2 lg:text-[9px] lg:mt-0.5 xl:text-[10px] xl:mt-1 ${isLight ? "text-slate-500" : "text-slate-500"}`}>
             {t('events.shareCode')}
           </p>
         </div>
         )}
       </div>
 
-      <div className="w-full bg-surface border border-white/10 rounded-xl overflow-hidden shadow-2xl lg:rounded-lg">
+      <div className={`w-full rounded-xl overflow-hidden shadow-2xl lg:rounded-lg ${isLight ? "bg-slate-100 border border-slate-200" : "bg-surface border border-white/10"}`}>
         {event.image && (
           <div className="h-40 relative lg:h-24 xl:h-28">
             <img
@@ -1055,9 +1104,9 @@ export const EventCreated: React.FC = () => {
               className="w-full h-full object-cover"
               alt={event.title}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent"></div>
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10 lg:top-2 lg:right-2 lg:px-2 lg:py-0.5 xl:top-2.5 xl:right-2.5 xl:px-2.5">
-              <span className="material-symbols-outlined text-green-400 text-xs lg:text-[10px] xl:text-xs">
+            <div className={`absolute inset-0 bg-gradient-to-t via-transparent to-transparent ${isLight ? "from-slate-100" : "from-surface"}`}></div>
+            <div className={`absolute top-3 right-3 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 lg:top-2 lg:right-2 lg:px-2 lg:py-0.5 xl:top-2.5 xl:right-2.5 xl:px-2.5 ${isLight ? "bg-white/95 border border-slate-300 text-slate-800 shadow-md" : "bg-black/60 border border-white/10 text-white"}`}>
+              <span className={`material-symbols-outlined text-xs lg:text-[10px] xl:text-xs ${isLight ? "text-emerald-600" : "text-green-400"}`}>
                 group
               </span>
               <span className="text-[10px] font-bold uppercase lg:text-[9px] xl:text-[10px]">
@@ -1069,76 +1118,77 @@ export const EventCreated: React.FC = () => {
           </div>
         )}
         <div className="p-5 space-y-4 lg:p-3 lg:space-y-2 xl:p-4 xl:space-y-3">
-          {!event.image && (
-            <div className="flex justify-end mb-2 lg:mb-1 xl:mb-1.5">
-              <div className="bg-black/60 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 border border-white/10 lg:px-2 lg:py-0.5 xl:px-2.5">
-                <span className="material-symbols-outlined text-green-400 text-xs lg:text-[10px] xl:text-xs">
-                  group
-                </span>
-                <span className="text-[10px] font-bold uppercase lg:text-[9px] xl:text-[10px]">
-                  {spotsLeft > 0
-                    ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
-                    : t('events.full')}
-                </span>
-              </div>
-            </div>
-          )}
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-xl font-bold leading-tight lg:text-sm lg:leading-snug xl:text-base">
+          <div className="flex justify-between items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <h2 className={`text-xl font-bold leading-tight truncate lg:text-sm lg:leading-snug xl:text-base ${isLight ? "text-slate-900" : "text-white"}`}>
                 {event.title}
               </h2>
-              <p className="text-primary text-sm lg:text-xs xl:text-sm">{event.sport}</p>
+              <span className={`text-sm lg:text-xs xl:text-sm shrink-0 ${isLight ? "text-slate-500" : "text-slate-400"}`}>·</span>
+              <p className="text-primary text-sm lg:text-xs xl:text-sm shrink-0">{sportDisplayName}</p>
             </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!event.image && (
+                <div className={`backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 lg:px-2 lg:py-0.5 xl:px-2.5 ${isLight ? "bg-white/95 border border-slate-300 text-slate-800 shadow-md" : "bg-black/60 border border-white/10 text-white"}`}>
+                  <span className={`material-symbols-outlined text-xs lg:text-[10px] xl:text-xs ${isLight ? "text-emerald-600" : "text-green-400"}`}>
+                    group
+                  </span>
+                  <span className="text-[10px] font-bold uppercase lg:text-[9px] xl:text-[10px]">
+                    {spotsLeft > 0
+                      ? `${spotsLeft} ${spotsLeft === 1 ? t('events.spot') : t('events.spots')} ${t('events.open')}`
+                      : t('events.full')}
+                  </span>
+                </div>
+              )}
             {event.competitive && (
               <div className="bg-gradient-to-r from-yellow-400 to-green-400 p-[1px] rounded-lg lg:rounded-md">
-                <div className="bg-black/80 px-2 py-1 rounded-[7px] lg:px-1.5 lg:py-0.5 xl:px-2 xl:py-1">
+                <div className={`px-2 py-1 rounded-[7px] lg:px-1.5 lg:py-0.5 xl:px-2 xl:py-1 ${isLight ? "bg-slate-800/95" : "bg-black/80"}`}>
                   <span className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-green-400 lg:text-[10px] xl:text-xs">
                     {event.skillLevel.toUpperCase()}
                   </span>
                 </div>
               </div>
             )}
+            </div>
           </div>
-          <div className="border-t border-white/10 pt-4 space-y-3 lg:pt-2 lg:space-y-2 xl:pt-3 xl:space-y-2.5">
+          <div className={`border-t pt-4 space-y-3 lg:pt-2 lg:space-y-2 xl:pt-3 xl:space-y-2.5 ${isLight ? "border-slate-200" : "border-white/10"}`}>
             <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 lg:w-6 lg:h-6 xl:w-7 xl:h-7">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center lg:w-6 lg:h-6 xl:w-7 xl:h-7 ${isLight ? "bg-slate-200/80 text-slate-600" : "bg-white/5 text-slate-400"}`}>
                 <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
                   calendar_month
                 </span>
               </div>
               <div>
-                <p className="text-xs text-slate-400 lg:text-[10px] xl:text-xs">{t('events.dateTime')}</p>
-                <p className="font-medium text-sm lg:text-xs xl:text-sm">{formatEventDate(event.date, event.time, event.endTime)}</p>
+                <p className={`text-xs lg:text-[10px] xl:text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>{t('events.dateTime')}</p>
+                <p className={`font-medium text-sm lg:text-xs xl:text-sm ${isLight ? "text-slate-800" : "text-white"}`}>{formatEventDate(event.date, event.time, event.endTime)}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 lg:w-6 lg:h-6 xl:w-7 xl:h-7">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center lg:w-6 lg:h-6 xl:w-7 xl:h-7 ${isLight ? "bg-slate-200/80 text-slate-600" : "bg-white/5 text-slate-400"}`}>
                 <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
                   location_on
                 </span>
               </div>
               <div>
-                <p className="text-xs text-slate-400 lg:text-[10px] xl:text-xs">{t('events.location')}</p>
-                <p className="font-medium text-sm lg:text-xs xl:text-sm">{event.location}</p>
+                <p className={`text-xs lg:text-[10px] xl:text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>{t('events.location')}</p>
+                <p className={`font-medium text-sm lg:text-xs xl:text-sm ${isLight ? "text-slate-800" : "text-white"}`}>{event.location}</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex items-center justify-between lg:p-2 xl:p-2.5">
+      <div className={`rounded-lg p-3 flex items-center justify-between lg:p-2 xl:p-2.5 ${isLight ? "bg-slate-200/60 border border-slate-200" : "bg-white/5 border border-white/5"}`}>
         <div className="flex items-center gap-3 lg:gap-2 xl:gap-2.5">
           <div className="flex -space-x-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs ring-2 ring-background lg:w-6 lg:h-6 lg:text-[10px] xl:w-7 xl:h-7">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ring-2 lg:w-6 lg:h-6 lg:text-[10px] xl:w-7 xl:h-7 ${isLight ? "bg-primary/20 ring-slate-100 text-primary" : "bg-primary/20 ring-background"}`}>
               +
             </div>
           </div>
-          <span className="text-sm font-medium lg:text-xs xl:text-sm">{t('events.eventCreated.inviteCrew')}</span>
+          <span className={`text-sm font-medium lg:text-xs xl:text-sm ${isLight ? "text-slate-800" : ""}`}>{t('events.eventCreated.inviteCrew')}</span>
         </div>
         <button 
           onClick={() => event && navigate(`/event/${event.id}`)}
-          className="w-8 h-8 rounded-full bg-primary flex items-center justify-center lg:w-6 lg:h-6 xl:w-7 xl:h-7"
+          className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white lg:w-6 lg:h-6 xl:w-7 xl:h-7"
         >
           <span className="material-symbols-outlined text-sm lg:text-xs xl:text-sm">
             arrow_forward
@@ -1150,14 +1200,16 @@ export const EventCreated: React.FC = () => {
         {event && (
           <button
             onClick={() => navigate(`/event/${event.id}`)}
-            className="w-full py-4 bg-primary rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm"
+            className="w-full py-4 bg-primary rounded-xl font-bold text-white shadow-lg shadow-primary/20 flex items-center justify-center gap-2 lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm"
           >
             <span className="material-symbols-outlined lg:text-base xl:text-lg">visibility</span> {t('events.eventCreated.viewEventDetails')} {t('events.eventDetails')}
           </button>
         )}
         <button
           onClick={() => navigate("/home")}
-          className="w-full py-4 bg-transparent border border-white/20 rounded-xl font-medium hover:bg-white/5 lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm"
+          className={`w-full py-4 bg-transparent rounded-xl font-medium lg:py-2 lg:text-xs lg:rounded-lg xl:py-2.5 xl:text-sm ${
+            isLight ? "border border-slate-300 text-slate-800 hover:bg-slate-200/60" : "border border-white/20 hover:bg-white/5"
+          }`}
         >
           {t('events.eventCreated.returnToDashboard')}
         </button>
@@ -1834,7 +1886,7 @@ export const OrganizerDashboard: React.FC = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface rounded-2xl border border-white/10 w-full max-w-md max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="text-xl font-bold">Invite Friends</h2>
+              <h2 className="text-xl font-bold">{t('events.inviteFriends')}</h2>
               <button
                 onClick={() => setShowInviteModal(false)}
                 className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
@@ -1845,7 +1897,7 @@ export const OrganizerDashboard: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 lg:p-3">
               {friends.length === 0 ? (
                 <div className="text-center text-slate-400 py-8 lg:py-6">
-                  <p className="lg:text-sm">No friends to invite</p>
+                  <p className="lg:text-sm">{t('events.noFriendsToInvite')}</p>
                   <p className="text-xs mt-2 lg:text-[11px] lg:mt-1.5">{t('events.addFriendsHint')}</p>
                 </div>
               ) : (
@@ -1929,9 +1981,12 @@ export const EventDetails: React.FC = () => {
     denyInvitation,
   } = useEvents();
   const { getOrCreateChat } = useMessages();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const [event, setEvent] = useState<Event | null>(null);
   const [players, setPlayers] = useState<User[]>([]);
+  const [sports, setSports] = useState<Sport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
@@ -1943,6 +1998,14 @@ export const EventDetails: React.FC = () => {
   const [invitedFriendIds, setInvitedFriendIds] = useState<Set<string>>(new Set());
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [hasRated, setHasRated] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    sportsService.getAllSports().then((list) => {
+      if (!cancelled) setSports(list);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Check if event is past - defined early so it's always in scope
   const isEventPast = () => {
@@ -2500,7 +2563,7 @@ export const EventDetails: React.FC = () => {
         <div className="px-4 pt-16 pb-3 border-b border-white/5">
         <div className="flex gap-1.5 mb-1.5 flex-wrap">
           <span
-            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+            className={`px-2 py-1 rounded text-xs font-bold ${
               event.status === "open"
                 ? "bg-green-500/20 text-green-500 border border-green-500/20"
                 : event.status === "full"
@@ -2514,8 +2577,10 @@ export const EventDetails: React.FC = () => {
               ? t('events.full')
               : event.status}
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/20">
-            {event.sport}
+          <span className="px-2 py-1 rounded text-xs font-bold bg-primary/20 text-primary border border-primary/20">
+            {language === "vi"
+              ? (sports.find((s) => s.name === event.sport)?.name_vi ?? event.sport)
+              : event.sport}
           </span>
         </div>
         <div className="flex items-center justify-between mb-3">
@@ -2581,31 +2646,15 @@ export const EventDetails: React.FC = () => {
               {t('events.directions')}
             </button>
           </div>
-          {event.price && event.price > 0 && (
-            <div className="flex gap-3 items-start">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <span className="material-symbols-outlined text-base">payments</span>
-              </div>
-              <div>
-                <p className="font-bold text-sm">
-                  {new Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(event.price)}
-                </p>
-                <p className="text-xs text-slate-400">{t('events.eventFee')}</p>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
           {event.price && event.price > 0 && (
-            <div className="bg-surface border border-white/5 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-slate-400 text-base">
+            <div className={`rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 ${isLight ? "bg-green-100 border border-green-400/60" : "bg-green-500/10 border border-green-500/30"}`}>
+              <span className={`material-symbols-outlined text-base ${isLight ? "text-green-600" : "text-green-400"}`}>
                 payments
               </span>
-              <span className="text-xs font-semibold text-slate-300">
+              <span className={`text-xs font-semibold ${isLight ? "text-green-700" : "text-green-400"}`}>
                 {new Intl.NumberFormat("vi-VN", {
                   style: "currency",
                   currency: "VND",
@@ -2614,11 +2663,11 @@ export const EventDetails: React.FC = () => {
             </div>
           )}
           {event.skillLevel && event.skillLevel !== "All" && (
-            <div className="bg-surface border border-white/5 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-slate-400 text-base">
+            <div className={`rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 ${isLight ? "bg-purple-100 border border-purple-400/60" : "bg-purple-500/10 border border-purple-500/30"}`}>
+              <span className={`material-symbols-outlined text-base ${isLight ? "text-purple-600" : "text-purple-400"}`}>
                 leaderboard
               </span>
-              <span className="text-xs font-semibold text-slate-300">
+              <span className={`text-xs font-semibold ${isLight ? "text-purple-700" : "text-purple-400"}`}>
                 {t(`events.skillLevel.${event.skillLevel.toLowerCase()}`)}
               </span>
             </div>
@@ -2707,10 +2756,20 @@ export const EventDetails: React.FC = () => {
             )}
             {!isFull && (
               <div className="flex flex-col items-center gap-1.5 min-w-[50px]">
-                <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-600 bg-white/5 flex items-center justify-center text-slate-500">
+                <button
+                  type="button"
+                  onClick={() => isOrganizer && !isEventPast() && setShowInviteModal(true)}
+                  disabled={!isOrganizer || isEventPast()}
+                  className={`w-12 h-12 rounded-full border-2 border-dashed border-slate-600 bg-white/5 flex items-center justify-center text-slate-500 transition-colors ${
+                    isOrganizer && !isEventPast()
+                      ? "hover:border-primary/50 hover:bg-primary/10 hover:text-primary cursor-pointer"
+                      : "cursor-default"
+                  }`}
+                  title={isOrganizer && !isEventPast() ? t('events.inviteFriends') : undefined}
+                >
                   <span className="material-symbols-outlined text-base">person_add</span>
-                </div>
-                <span className="text-[10px] font-medium text-slate-500">{t('events.open')}</span>
+                </button>
+                <span className="text-[10px] font-medium text-slate-500">{t('events.add')}</span>
               </div>
             )}
           </div>
@@ -2848,7 +2907,7 @@ export const EventDetails: React.FC = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface rounded-2xl border border-white/10 w-full max-w-md max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="text-xl font-bold">Invite Friends</h2>
+              <h2 className="text-xl font-bold">{t('events.inviteFriends')}</h2>
               <button
                 onClick={() => setShowInviteModal(false)}
                 className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
@@ -2859,7 +2918,7 @@ export const EventDetails: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4">
               {friends.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
-                  <p>No friends to invite</p>
+                  <p>{t('events.noFriendsToInvite')}</p>
                   <p className="text-xs mt-2">{t('events.addFriendsHint')}</p>
                 </div>
               ) : (

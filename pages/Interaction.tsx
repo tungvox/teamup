@@ -4,6 +4,7 @@ import { Avatar, Header } from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
 import { settingsService } from "../services/settingsService";
 
 export const ChatDetail: React.FC = () => {
@@ -33,6 +34,7 @@ export const ChatDetail: React.FC = () => {
 export const NotificationSettings: React.FC = () => {
   const { notificationSettings, updateNotificationSettings } = useSettings();
   const { language, setLanguage, t } = useLanguage();
+  const { theme, themeMode, setTheme } = useTheme();
   const { user } = useAuth();
 
   const ToggleItem = ({
@@ -90,6 +92,44 @@ export const NotificationSettings: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-background text-white">
       <Header title={t('settings.title')} />
       <main className="flex-1 p-4 space-y-6 w-full max-w-4xl mx-auto lg:p-6 lg:space-y-4">
+        {/* Theme Settings - Dark, Light, or Auto (by time) */}
+        <div>
+          <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 px-2 lg:text-[11px] lg:mb-1.5">
+            {t('settings.theme')}
+          </h3>
+          <div className="bg-surface rounded-xl p-4 border border-white/5 lg:rounded-lg lg:p-3">
+            <div className="grid grid-cols-3 gap-2">
+              {(['dark', 'light', 'auto'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setTheme(mode)}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors lg:p-2.5 lg:gap-1.5 ${
+                    themeMode === mode
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300'
+                  }`}
+                  aria-pressed={themeMode === mode}
+                  aria-label={
+                    mode === 'dark'
+                      ? t('settings.theme.dark')
+                      : mode === 'light'
+                        ? t('settings.theme.light')
+                        : t('settings.theme.auto')
+                  }
+                >
+                  <span className="material-symbols-outlined text-[22px] lg:text-[18px]">
+                    {mode === 'dark' ? 'dark_mode' : mode === 'light' ? 'light_mode' : 'schedule'}
+                  </span>
+                  <span className="text-xs font-medium lg:text-[11px]">
+                    {mode === 'dark' ? t('settings.theme.dark') : mode === 'light' ? t('settings.theme.light') : t('settings.theme.auto')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Language Settings */}
         <div>
           <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 px-2 lg:text-[11px] lg:mb-1.5">
